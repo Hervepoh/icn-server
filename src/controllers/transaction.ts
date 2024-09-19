@@ -13,6 +13,22 @@ import { bulkCreateSchema } from "../schema/roles";
 import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
 import { getUserConnected } from "../libs/authentificationService";
+import { Transaction } from '@prisma/client';
+
+interface TransactionWithRelations extends Transaction {
+  bank?: {
+    name: string;
+  };
+  paymentMode?: {
+    name: string;
+  };
+  status?: {
+    name: string;
+  };
+  user?: {
+    name: string;
+  };
+}
 
 const key = 'transactions';
 
@@ -40,7 +56,7 @@ export const create =
 
     const status = await prismaClient.status.findFirst({ where: { name: 'draft'}})
     console.log("parsedTransaction",parsedTransaction);
-    return "ok";
+
     const transaction = await prismaClient.transaction.create({
       data: {
         name: parsedTransaction.name,
@@ -114,17 +130,19 @@ export const get =
       }
     };
 
-    const transactions = await prismaClient.transaction.findMany(query);
-    // const result = transactions.map((item) => ({
-    //   ...item,
-    //   bank: item
-    //   payment_mode: item.payment_mode ? item.payment_mode?.name : null,
-    // }));
+    const transactions = await prismaClient.transaction.findMany(query) as TransactionWithRelations[];
+    console.log("transactions",transactions);
+    const result = transactions.map((item) => ({
+      ...item,
+      status: item?.status?.name,
+      bank: item?.bank?.name,
+      payment_mode: item?.paymentMode?.name ,
+    }));
     revalidateService(key);
 
     return res.status(200).json({
       success: true,
-      data: transactions,
+      data: result,
     });
   };
 
