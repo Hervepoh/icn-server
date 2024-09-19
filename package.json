@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node ./dist/src/index.js",
+    "start": "node ./src/index.js",
     "dev": "npx nodemon",
-    "build": "npm run clean && npx tsc",
+    "build": "npx tsc",
     "test": "echo \"Error: no test specified\" && exit 1",  
-    "seed": "ts-node ./prisma/seed.ts",
-    "clean": "rm -rf ./dist"
+    "seed": "ts-node ./prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
