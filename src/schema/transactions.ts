@@ -2,6 +2,18 @@ import { z } from 'zod';
 
 const idSchema = z.string().uuid();
 
+const createSchema = z.object({
+  name: z.string()
+    .min(1, 'Customer name is required')
+    .max(100, { message: "Customer name Less than 100 caracters." })
+    .regex(/^[a-zA-Z0-9\s]+$/, { message: "The customer name can only contain letters, numbers, and spaces." }),
+  amount: z.number().positive(),
+  bank: z.string().uuid('Bank input format is not available'),
+  payment_date: z.string().min(1, "Payment date is required"),
+  payment_mode: z.string().uuid('Payment mode input format is not available'),
+});
+
+
 const transactionSchema = z.object({
   reference: z.string().optional(),
   userId: z.string().uuid(), // Assurez-vous que c'est un UUID
@@ -30,4 +42,4 @@ const bulkDeleteSchema = z.object({
 });
 
 // Export the schemas
-export { idSchema, transactionSchema, bulkCreateSchema, bulkDeleteSchema };
+export { transactionSchema, idSchema, createSchema, bulkCreateSchema, bulkDeleteSchema };

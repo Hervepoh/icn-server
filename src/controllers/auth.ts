@@ -5,10 +5,13 @@ import bcrypt from "bcrypt";
 import jwt, { JwtPayload, Secret } from "jsonwebtoken";
 
 import prismaClient from "../libs/prismadb";
+import { redis } from "../libs/utils/redis";
 import sendMail from "../libs/utils/sendMail";
-import { accessTokenOptions, expiredFormat, refreshTokenOptions, sendToken } from "../libs/utils/jwt";
 import { isValidPassword, passwordPolicy } from "../libs/utils/validator";
+import { accessTokenOptions, expiredFormat, refreshTokenOptions, sendToken } from "../libs/utils/jwt";
 import HttpException, { ErrorCode } from "../exceptions/http-exception";
+import ConfigurationException from "../exceptions/configuration";
+import UnauthorizedException from "../exceptions/unauthorized";
 import BadRequestException from "../exceptions/bad-requests";
 import NotFoundException from "../exceptions/not-found";
 import { ACCESS_TOKEN_EXPIRE, ACCESS_TOKEN_SECRET, ACTIVATION_TOKEN_EXPIRE, ACTIVATION_TOKEN_SECRET, MAIL_NO_REPLY, REDIS_SESSION_EXPIRE, REFRESH_TOKEN_EXPIRE, REFRESH_TOKEN_SECRET, SALT_ROUNDS } from "../secrets";
@@ -16,9 +19,17 @@ import { ACCESS_TOKEN_EXPIRE, ACCESS_TOKEN_SECRET, ACTIVATION_TOKEN_EXPIRE, ACTI
 import { EventType } from "../constants/enum";
 import { UserEntity } from "../entities/user";
 import { signUpSchema } from "../schema/users";
-import ConfigurationException from "../exceptions/configuration";
-import { redis } from "../libs/utils/redis";
-import UnauthorizedException from "../exceptions/unauthorized";
+
+export interface IUser extends Document {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    isVerified: boolean;
+    comparePassword: (password: string) => Promise<boolean>;
+    signAccessToken: () => string;
+    signRefreshToken: () => string;
+}
 
 
 //-----------------------------------------------------------------------------
@@ -124,18 +135,6 @@ export const createActivationToken = (user: any): IActivationToken => {
     return { token, activationCode };
 };
 
-
-export interface IUser extends Document {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-    isVerified: boolean;
-    comparePassword: (password: string) => Promise<boolean>;
-    signAccessToken: () => string;
-    signRefreshToken: () => string;
-}
-
 //-----------------------------------------------
 //               Activate User  /activate
 //-----------------------------------------------
@@ -223,7 +222,6 @@ interface ILoginRequest {
 // Handling the user login(signin) process
 export const signin =
     async (req: Request, res: Response, next: NextFunction) => {
-
         const { email, password, roleId }: ILoginRequest = req.body;
 
         // Validation of user inputs
@@ -244,7 +242,7 @@ export const signin =
         if (user.roles.length === 0) {
             return next(new ConfigurationException("User has no roles assigned", ErrorCode.BAD_CONFIGURATION));
         }
-        let role
+        let roleIdToConnect;
         // If user has multiple roles, check if a role is specifie
         if (user.roles.length > 1) {
             if (!roleId) throw new BadRequestException("Please specify a role to sign in", ErrorCode.INVALID_DATA);
@@ -254,22 +252,28 @@ export const signin =
             if (!roleExists) {
                 return next(new BadRequestException("Invalid role specified", ErrorCode.BAD_CONFIGURATION));
             }
-            role = await prismaClient.role.findFirst({
-                select: {
-                    id: true,
-                    name: true,
-                },
-                where: { id: roleId },
-            });
+            roleIdToConnect = roleId;
         } else {
-            role = await prismaClient.role.findFirst({
-                select: {
-                    id: true,
-                    name: true,
-                },
-                where: { id: user.roles[0].roleId },
-            });
+            roleIdToConnect = user.roles[0].roleId
         }
+        const role = await prismaClient.role.findUnique({
+            where: { id: roleIdToConnect },
+            select: {
+                id: true,
+                name: true,
+                RolePermission: {
+                    select: {
+                        permission: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        console.log(role)
 
         const userEntity = new UserEntity({ ...user, role });
         const isPasswordMatched = await userEntity.comparePassword(password);
@@ -302,11 +306,20 @@ export const signout =
         res.cookie("access_token", "", { maxAge: 1 });
         res.cookie("refresh_token", "", { maxAge: 1 });
 
-        // Delete in redis the user_id
-        const userId = req.user?.id!;
-        redis.del(userId);
+        const userId = req.user?.id;
+        if (userId) {
+            // Delete in redis the user id
+            redis.del(userId);
 
-        // TODO : enregistrer la date de deconnection
+            // Disconnection History
+            await prismaClient.connectionHistory.create({
+                data: {
+                    userId: userId,
+                    ipAddress: req.ip || '0.0.0.0',
+                    eventType: EventType.LOGOUT
+                },
+            });
+        }
         res.status(200).json({
             success: true,
             message: "Logged out successfully",
@@ -323,34 +336,37 @@ export const updateAccessToken =
     async (req: Request, res: Response, next: NextFunction) => {
         // const refresh_token = req.headers.refresh_token;
         const refresh_token = req.cookies.refresh_token as string;
-
+        console.log("refresh_token", refresh_token);
         const message = "Could not refresh token , please login for access this ressource.";
-        if (!refresh_token) throw new UnauthorizedException(message, ErrorCode.UNAUTHORIZE);
-
-
+        if (!refresh_token) return next(new UnauthorizedException(message, ErrorCode.UNAUTHORIZE));
+        
+   
         const decoded = jwt.verify(
             refresh_token,
             REFRESH_TOKEN_SECRET as string
         ) as JwtPayload;
+
         if (!decoded) {
             throw new UnauthorizedException(message, ErrorCode.UNAUTHORIZE);
         }
+        console.log("decode", decoded);
+        console.log("ok");
 
         const session = await redis.get(decoded.id);
         if (!session) {
             throw new UnauthorizedException(message, ErrorCode.UNAUTHORIZE);
         }
-
+  
         const user = JSON.parse(session);
 
         const accessToken = jwt.sign(
-            { id: user._id },
+            { id: user.id },
             ACCESS_TOKEN_SECRET,
             { expiresIn: expiredFormat(ACCESS_TOKEN_EXPIRE) }
         );
 
         const refreshToken = jwt.sign(
-            { id: user._id },
+            { id: user.id },
             REFRESH_TOKEN_SECRET,
             { expiresIn: expiredFormat(REFRESH_TOKEN_EXPIRE) }
         );

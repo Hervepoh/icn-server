@@ -77,33 +77,47 @@ export const adminMiddleware = async (req: Request, res: Response, next: NextFun
 // Validate User Role/Permissions
 export const authorizeMiddleware = (...allowedPermissions: string[]) => {
     return async (req: Request, res: Response, next: NextFunction) => {
-        const userRoles = req.user?.roles || []; // Assuming roles is an array
-
-        if (!userRoles.length) {
+        const userRoles = req.user?.roles ?? []; // Assuming roles is an array
+        if (userRoles.length < 1) {
             return next(new HttpException(`Forbidden: No roles assigned to the user`, 403, ErrorCode.UNAUTHORIZE, null));
         }
-
-        // Fetch permissions for the user's roles
+        if (!req.user?.role) {
+            return next(new HttpException(`Forbidden: No role available`, 403, ErrorCode.UNAUTHORIZE, null));
+        }
+        // Fetch permissions for the user's role connected
         // Récupérer les permissions pour les rôles de l'utilisateur
-        const permissions = await Promise.all(userRoles.map(role =>
-            prismaClient.rolePermission.findMany({
-                where: { roleId: role.id }, // Utilisation de role.id pour la recherche
-                include: {
-                    permission: true // Inclure les permissions associées
+        // const permissions = await Promise.all(userRoles.map(role =>
+        //     prismaClient.rolePermission.findMany({
+        //         where: { roleId: role.id }, // Utilisation de role.id pour la recherche
+        //         include: {
+        //             permission: true // Inclure les permissions associées
+        //         },
+        //     })
+        // ));
+        const permissions = await prismaClient.rolePermission.findMany({
+            where: { roleId: req.user?.role.id }, // Utilisation de role.id pour la recherche
+            include: {
+                permission: true // Inclure les permissions associées
+            },
+            orderBy: {
+                permission: {
+                    name: 'asc', // Or 'desc' for descending order
                 },
-            })
-        ));
+            },
+        })
 
         // Aplatir les permissions et vérifier contre les permissions autorisées
-        const userPermissions = permissions.flatMap(rolePermissions =>
-            rolePermissions.map(rp => rp.permission.name)
-        );
-
+        // const userPermissions = permissions.flatMap(rolePermissions =>
+        //     rolePermissions.map(rp => rp.permission.name)
+        // );
+        const userPermissions =  permissions.flatMap(rolePermission => rolePermission.permission.name);
+    
         const hasPermission = userPermissions.some(permission => allowedPermissions.includes(permission));
+
         if (!hasPermission) {
             return next(new HttpException(`Forbidden: You do not have permission to access this resource`, 403, ErrorCode.UNAUTHORIZE, null));
         }
-
+        
 
         next();
     }

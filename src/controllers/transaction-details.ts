@@ -92,7 +92,7 @@ export const bulkUpdate =
 
     // // Vérifier le format des mises à jour
     // for (const row of data) {
-    //   if (!row.hasOwnProperty('_id') || typeof row._id !== 'string'
+    //   if (!row.hasOwnProperty('id') || typeof row.id !== 'string'
     //     || !row.hasOwnProperty('selected') || typeof row.selected !== 'boolean'
     //     || !row.hasOwnProperty('amountTopaid') || typeof row.amountTopaid !== 'number') {
     //     return res.status(400).json({ error: 'Invalid update format' });
@@ -100,7 +100,7 @@ export const bulkUpdate =
     // }
     // Data needed to be an array of objects
     // updateOne: {
-    //   filter: { _id: row._id },
+    //   filter: { id: row.id },
     //   update: {
     //     selected: row.selected,
     //     amountTopaid: row.amountTopaid,
@@ -195,7 +195,7 @@ export const update =
 
     // let data = {
     //   ...req.body,
-    //   modifiedBy: user._id,
+    //   modifiedBy: user.id,
     // };
     // if (req.body.payment_date) {
     //   //TODO
@@ -209,7 +209,7 @@ export const update =
     // if (req.body.status === appConfig.status[3]) {
     //   data = {
     //     ...data,
-    //     validator: user._id,
+    //     validator: user.id,
     //     validetedAt: new Date()
     //   };
     // }
@@ -217,7 +217,7 @@ export const update =
     // if (req.body.status === appConfig.status[4]) {
     //   data = {
     //     ...data,
-    //     validator: user._id,
+    //     validator: user.id,
     //     validetedAt: new Date(),
     //     refusal: true,
     //   };

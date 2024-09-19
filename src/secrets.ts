@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-
 dotenv.config({ path: '.env' })
 
 export const PORT = process.env.NODE_PORT;
@@ -7,20 +6,20 @@ export const NODE_ORIGIN = process.env.NODE_ORIGIN!;
 
 export const SALT_ROUNDS = process.env.SALT_ROUNDS;
 
-export const ACTIVATION_TOKEN_SECRET = process.env.ACTIVATION_TOKEN_SECRET!;
-export const ACTIVATION_TOKEN_EXPIRE = process.env.ACTIVATION_TOKEN_EXPIRE!;
+export const ACTIVATION_TOKEN_SECRET = process.env.ACTIVATION_TOKEN_SECRET || "";
+export const ACTIVATION_TOKEN_EXPIRE = process.env.ACTIVATION_TOKEN_EXPIRE || "";
 
-export const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET!;
-export const ACCESS_TOKEN_EXPIRE = process.env.ACCESS_TOKEN_EXPIRE!;
+export const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "";
+export const ACCESS_TOKEN_EXPIRE = process.env.ACCESS_TOKEN_EXPIRE || "";
 
-export const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET!;
-export const REFRESH_TOKEN_EXPIRE = process.env.REFRESH_TOKEN_EXPIRE!;
+export const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "";
+export const REFRESH_TOKEN_EXPIRE = process.env.REFRESH_TOKEN_EXPIRE || "";
 
-export const DATABASE_EXTERNAL_SERVICE_NAME: string = process.env.DATABASE_EXTERNAL_SERVICE_NAME!;
-export const DATABASE_EXTERNAL_HOSTNAME: string = process.env.DATABASE_EXTERNAL_HOSTNAME!;
-export const DATABASE_EXTERNAL_PORT: string = process.env.DATABASE_EXTERNAL_PORT!;
-export const DATABASE_EXTERNAL_USERNAME: string = process.env.DATABASE_EXTERNAL_USERNAME!;
-export const DATABASE_EXTERNAL_PASSWORD: string = process.env.DATABASE_EXTERNAL_PASSWORD!;
+export const DATABASE_EXTERNAL_SERVICE_NAME: string = process.env.DATABASE_EXTERNAL_SERVICE_NAME || "";
+export const DATABASE_EXTERNAL_HOSTNAME: string = process.env.DATABASE_EXTERNAL_HOSTNAME || "";
+export const DATABASE_EXTERNAL_PORT: string = process.env.DATABASE_EXTERNAL_PORT || "";
+export const DATABASE_EXTERNAL_USERNAME: string = process.env.DATABASE_EXTERNAL_USERNAME || "";
+export const DATABASE_EXTERNAL_PASSWORD: string = process.env.DATABASE_EXTERNAL_PASSWORD || "";
 
 
 export const REDIS_HOSTNAME = process.env.REDIS_HOSTNAME;

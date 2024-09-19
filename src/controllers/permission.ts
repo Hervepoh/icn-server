@@ -8,6 +8,7 @@ import UnprocessableException from '../exceptions/validation';
 
 import { permissionSchema, bulkCreateSchema, bulkDeleteSchema } from '../schema/permissions';
 import BadRequestException from '../exceptions/bad-requests';
+import UnauthorizedException from '../exceptions/unauthorized';
 
 const key = 'permissions';
 
@@ -120,7 +121,14 @@ export const remove =
     async (req: Request, res: Response, next: NextFunction) => {
         const { id } = req.params;
         if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA);
+        
 
+        // check if a role has this permission 
+        const isPermissionAssign = await prismaClient.rolePermission.findFirst({
+            where: { permissionId: id },
+        });
+        if (isPermissionAssign) throw new UnauthorizedException('You need to unassign this permission first.', ErrorCode.INTERNAL_EXCEPTION);
+    
         await prismaClient.permission.delete({
             where: { id: id },
         });

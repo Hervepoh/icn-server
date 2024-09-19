@@ -24,7 +24,7 @@ export const create =
         // Validate input
         const parsedRole = roleSchema.parse(req.body as IRoleRequest);
         const role = await prismaClient.role.create({
-            data: parsedRole,
+            data: { name: parsedRole.name},
         });
         revalidateService(key);
 

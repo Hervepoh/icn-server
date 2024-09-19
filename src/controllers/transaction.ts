@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from "express";
 import { redis } from "../libs/utils/redis";
 import prismaClient from "../libs/prismadb";
 import { getCurrentMonthYear, parseDMY } from "../libs/utils/formatter";
-import { idSchema, transactionSchema } from "../schema/transactions";
+import { createSchema, idSchema, transactionSchema } from "../schema/transactions";
 import UnauthorizedException from "../exceptions/unauthorized";
 import BadRequestException from "../exceptions/bad-requests";
 import { ErrorCode } from "../exceptions/http-exception";
@@ -12,6 +12,7 @@ import { REDIS_SESSION_EXPIRE } from "../secrets";
 import { bulkCreateSchema } from "../schema/roles";
 import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
+import { getUserConnected } from "../libs/authentificationService";
 
 const key = 'transactions';
 
@@ -23,9 +24,9 @@ const key = 'transactions';
 interface ITransactionRequest {
   name: string;
   amount: number;
-  bankId: string;
-  paymentDate: Date;
-  paymentModeId: string;
+  bank: string;
+  payment_date: Date;
+  payment_mode: string;
 }
 
 // Handling create process
@@ -33,22 +34,24 @@ export const create =
   async (req: Request, res: Response, next: NextFunction) => {
 
     // Validate input
-    const parsedTransaction = transactionSchema.parse(req.body as ITransactionRequest);
+    const parsedTransaction = createSchema.parse(req.body as ITransactionRequest);
+    
+    const user = await getUserConnected(req);
 
-    // get the user information
-    const user = await prismaClient.user.findFirst({
-      where: { id: req.user?.id },
-    });
-
-    if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
-
+    const status = await prismaClient.status.findFirst({ where: { name: 'draft'}})
+    console.log("parsedTransaction",parsedTransaction);
+    return "ok";
     const transaction = await prismaClient.transaction.create({
       data: {
-        ...req.body,
-        payment_date: parseDMY(req.body.payment_date),
-        createdBy: user.id,
-        modifiedBy: user.id,
-        userId: user.id,
+        name: parsedTransaction.name,
+        amount: parsedTransaction.amount,
+        bankId: parsedTransaction.bank,
+        statusId: status?.id,
+        paymentModeId: parsedTransaction.payment_mode,
+        paymentDate: parseDMY(parsedTransaction.payment_date),
+        createdBy:  user.id,
+        modifiedBy: user?.id,
+        userId: user?.id,
       },
     });
     revalidateService(key);

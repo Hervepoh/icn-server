@@ -11,7 +11,7 @@ import UnprocessableException from "../exceptions/validation";
 import HttpException, { ErrorCode } from "../exceptions/http-exception";
 import { acceptablePasswordPolicy, isAnAcceptablePassword, isValidEmail, isValidPassword, passwordPolicy } from "../libs/utils/validator";
 import { MAIL_NO_REPLY, SALT_ROUNDS } from "../secrets";
-import { signUpSchema } from "../schema/users";
+import { signUpSchema, userRoleSchema } from "../schema/users";
 import { NotificationMethod } from "@prisma/client";
 
 
@@ -40,12 +40,12 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
 
     // Create user
     let user = await prismaClient.user.create({
-            data: {
-                name,
-                email,
-                password: await bcrypt.hash(password, parseInt(SALT_ROUNDS || '10')),
-            }
-        });
+        data: {
+            name,
+            email,
+            password: await bcrypt.hash(password, parseInt(SALT_ROUNDS || '10')),
+        }
+    });
 
     // User notification by mail
     await prismaClient.notification.create({
@@ -89,21 +89,81 @@ export const get =
             });
         }
     };
-    
+
 
 //-----------------------------------------------
 //              get user notifications
 //-----------------------------------------------
 export const getUserNotification =
-  async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, next: NextFunction) => {
 
-    const notifications = await prismaClient.internalNotification
-      .findMany(
-        { where: { createdAt: "desc" } }
-      )
+        const notifications = await prismaClient.internalNotification
+            .findMany(
+                { where: { createdAt: "desc" } }
+            )
 
-    res.status(200).json({
-      success: true,
-      notifications,
-    });
-  };
+        res.status(200).json({
+            success: true,
+            notifications,
+        });
+    };
+
+
+
+//---------------------------------------------------------------------
+//              Update User role /user/role -- only for admin users
+//---------------------------------------------------------------------
+
+interface IUpdateUserRoleRequest {
+    userId: string;
+    roleId: string;
+}
+
+export const addUserRole =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const parsedData = userRoleSchema.parse(req.body as IUpdateUserRoleRequest);
+        if (!parsedData) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
+        const redis_roles = await redis.get('roles');
+        const data = JSON.parse(redis_roles || '');
+        console.log('data', data);
+
+
+        // const validRoles: string[] = ["admin", "teacher", ;
+        // if (!validRoles.includes(role)) {
+        //   return next(new ErrorHandler("Invalid 'role'", 400));
+        // }
+
+        // const user = await userModel.findById(userId);
+
+        // if (!user) {
+        //   return next(new ErrorHandler("User not found", 404));
+        // }
+
+        // updateUserRoleService(res, userId, role);
+
+    };
+
+export const removeUserRole =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { userId, roleId } = req.body as IUpdateUserRoleRequest;
+        if (!userId || !roleId) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
+
+        const redis_roles = await redis.get('roles');
+        const data = JSON.parse(redis_roles || '');
+        console.log('data', data);
+
+
+        // const validRoles: string[] = ["admin", "teacher", ;
+        // if (!validRoles.includes(role)) {
+        //   return next(new ErrorHandler("Invalid 'role'", 400));
+        // }
+
+        // const user = await userModel.findById(userId);
+
+        // if (!user) {
+        //   return next(new ErrorHandler("User not found", 404));
+        // }
+
+        // updateUserRoleService(res, userId, role);
+
+    };

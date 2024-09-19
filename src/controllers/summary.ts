@@ -216,7 +216,7 @@ export const me =
     //     // Récupération du nombre de requêtes par statut
     //     const requestCountByStatus = await requestModel.aggregate([
     //       { $match: { payment_date: { $gte: from, $lte: to }, userId } },
-    //       { $group: { _id: '$status', count: { $count: {} } } }
+    //       { $group: { id: '$status', count: { $count: {} } } }
     //     ]);
     //     console.log("Voici", res.cookie)
 
@@ -226,7 +226,7 @@ export const me =
     //     // Récupération du montant des requêtes par statut
     //     const amountByStatus = await requestModel.aggregate([
     //       { $match: { createdAt: { $gte: from, $lte: to }, userId } },
-    //       { $group: { _id: '$status', totalAmount: { $sum: '$amount' } } }
+    //       { $group: { id: '$status', totalAmount: { $sum: '$amount' } } }
     //     ]);
 
     //     // Récupération des 10 principaux demandeurs de requêtes par statut
@@ -301,7 +301,7 @@ function calculatePercentageChange(
 
 
 function fillMissingDays(
-  activeDays: { _id: string; count: number, totalAmount: number }[],
+  activeDays: { id: string; count: number, totalAmount: number }[],
   startDate: Date,
   endDate: Date
 ): { date: Date; number: number }[] {
@@ -312,7 +312,7 @@ function fillMissingDays(
   });
 
   const transactionsByDay = allDays.map((day) => {
-    const found = activeDays.find((d) => isSameDay(d._id, day));
+    const found = activeDays.find((d) => isSameDay(d.id, day));
     if (found) {
       return {
         date: day,

@@ -1,9 +1,11 @@
 import express, { Express, NextFunction, Request, Response } from "express";
+import http from "http";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { NODE_ORIGIN, PORT } from "./secrets";
 import rootRouter from "./routes";
 import { ErrorMiddleware } from "./middlewares/error";
+import { initSocketServer } from "./libs/socketServer";
 
 const app: Express = express();
 
@@ -41,6 +43,18 @@ app.all("*", (req: Request, res: Response, next: NextFunction) => {
 // Capture Error
 app.use(ErrorMiddleware);
 
-app.listen(PORT, () => {
-    console.log("App working...");
-});
+
+// Create server
+const server = http.createServer(app);
+
+// initSocketServer
+initSocketServer(server);
+
+server.listen(process.env.NODE_PORT, () => {
+    console.log(`Server is connected with port ${process.env.NODE_PORT}`);
+})
+
+// app.listen(PORT, () => {
+//     console.log("App working...");
+//     console.log(`Server is connected with port ${PORT}`);
+// });
