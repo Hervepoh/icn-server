@@ -1,4 +1,7 @@
 # Keep environment variables out of version control
 /node_modules
 /database
+/output
 .env
+.error
+
