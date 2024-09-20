@@ -53,15 +53,15 @@ model Reference {
 }
 
 model User {
-  id                String              @id @default(uuid()) @db.Char(36) // Use CHAR(36) for UUID
-  name              String
-  email             String              @unique
-  password          String
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  ConnectionHistory ConnectionHistory[]
-  transactions      Transaction[]       @relation("Creator")
-  roles          UserRole[]
+  id           String        @id @default(uuid()) @db.Char(36) // Use CHAR(36) for UUID
+  name         String
+  email        String        @unique
+  password     String
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  transactions Transaction[] @relation("Creator")
+  roles        UserRole[]
+  Audit        Audit[]
 
   @@map("users")
 }
@@ -150,8 +150,8 @@ model TransactionDetail {
   selected      Boolean   @default(true)
   deleted       Boolean   @default(false)
   deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   transaction Transaction @relation(fields: [transactionId], references: [id])
 
@@ -163,45 +163,48 @@ enum EventType {
   LOGOUT
 }
 
-model ConnectionHistory {
-  id        Int       @id @default(autoincrement())
-  userId    String // Usage of String to match User UUID ID  
-  user      User      @relation(fields: [userId], references: [id])
-  ipAddress String
-  eventType EventType // "login" ou "logout"
-  timestamp DateTime  @default(now()) // Date et heure de connexion ou déconnexion
+enum SourceType {
+  USER
+  SYSTEM
+}
 
-  @@map("connection_histories")
+model Audit {
+  id        Int        @id @default(autoincrement())
+  userId    String?
+  ipAddress String?
+  action    EventType
+  details   String
+  endpoint  String
+  createdAt DateTime   @default(now()) @map("created_at")
+  source    SourceType
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audits")
 }
 
 enum NotificationMethod {
   EMAIL
+  SMS
   WHATSAPP
+  INTERN
+  AVAILABLE
 }
 
 model Notification {
   id        Int                @id @default(autoincrement())
-  email     String? // Peut être nul si vous n'envoyez que WhatsApp
-  phone     String? // Numéro de téléphone pour WhatsApp, peut être nul si vous n'envoyez que par e-mail
-  message   String
+  userId    String? // Peut être nul si personne n'a pas encore de compte (register,activate)
+  email     String? // Peut être nul si vous n'envoyez que WhatsApp ou sms
+  phone     String? // Numéro de téléphone pour WhatsApp & sms, peut être nul si vous n'envoyez que par e-mail
   method    NotificationMethod
   subject   String
-  template  String
+  message   String
+  template  String?
+  status    String             @default("unread")
   sent      Boolean            @default(false) // Indique si la notification a été envoyée
   sentAt    DateTime? // Date d'envoi, peut être nul si pas encore envoyé
   createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
 
   @@map("notifications")
-}
-
-model InternalNotification  {
-  id        String   @id @default(cuid()) // Identifiant unique
-  userId    String
-  title     String
-  message   String
-  status    String   @default("unread")
-  createdAt DateTime @default(now()) // Timestamp de création
-  updatedAt DateTime @updatedAt // Timestamp de mise à jour
-
-  @@map("internal_notifications")
 }

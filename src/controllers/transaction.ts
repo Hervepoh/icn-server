@@ -55,7 +55,6 @@ export const create =
     const user = await getUserConnected(req);
 
     const status = await prismaClient.status.findFirst({ where: { name: 'draft'}})
-    console.log("parsedTransaction",parsedTransaction);
 
     const transaction = await prismaClient.transaction.create({
       data: {

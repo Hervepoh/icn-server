@@ -23,7 +23,7 @@ export const getUnpaidBills = async (req: Request, res: Response, next: NextFunc
   const authorizeType: string[] = ["many", "one"];
   const orderBy: string[] = ["asc", "desc"];
   const limit: string[] = ["10", "50", "100"];
-  if (isEmpty(searchBy)) throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
+  if (!searchBy) throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
 
   if (searchBy) {
     if (!authorizeSearchBy.includes(searchBy.toString())) {

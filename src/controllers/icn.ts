@@ -34,7 +34,7 @@ export const generationOfIntegrationFile =
       const fileName = `AES_${timestamp}_PAIDBILLS.csv`;
 
       // Génération du chemin du fichier
-      const outputDir = path.join(__dirname, '../output');
+      const outputDir = path.join(__dirname, '../../output');
       const filePath = path.join(outputDir, fileName);
 
       // Créer le répertoire 'output' s'il n'existe pas

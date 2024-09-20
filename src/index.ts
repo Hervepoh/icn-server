@@ -55,6 +55,5 @@ server.listen(process.env.NODE_PORT, () => {
 })
 
 // app.listen(PORT, () => {
-//     console.log("App working...");
 //     console.log(`Server is connected with port ${PORT}`);
 // });

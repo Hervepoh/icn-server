@@ -10,6 +10,7 @@ import unpaidRoutes from "./unpaid";
 import transactionRoutes from "./transaction";
 import transactionDetailRoutes from "./transaction-detail";
 import summaryRoutes from "./summary";
+import notificationRoutes from "./notification";
 
 const rootRouter:Router = Router();
 
@@ -25,5 +26,7 @@ rootRouter.use('/requests' , transactionRoutes);
 rootRouter.use('/requests-details' , transactionDetailRoutes);
 rootRouter.use('/search-unpaid' , unpaidRoutes);
 rootRouter.use('/icn' , interncreditRoutes);
+rootRouter.use('/notifications' , notificationRoutes);
+
 
 export default rootRouter;

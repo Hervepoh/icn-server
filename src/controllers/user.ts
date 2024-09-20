@@ -11,39 +11,61 @@ import UnprocessableException from "../exceptions/validation";
 import HttpException, { ErrorCode } from "../exceptions/http-exception";
 import { acceptablePasswordPolicy, isAnAcceptablePassword, isValidEmail, isValidPassword, passwordPolicy } from "../libs/utils/validator";
 import { MAIL_NO_REPLY, SALT_ROUNDS } from "../secrets";
-import { signUpSchema, userRoleSchema } from "../schema/users";
+import { idSchema, signUpSchema, updateSchema, userRoleSchema } from "../schema/users";
 import { NotificationMethod } from "@prisma/client";
+import NotFoundException from "../exceptions/not-found";
 
 
 const key = 'users';
 
 //-----------------------------------------------------------------------------
-//             CREATE
+//             CREATE USERS : post /users
 //-----------------------------------------------------------------------------
 interface IUser {
     name: string;
     email: string;
     password: string;
     avatar?: string;
-    role?: any
+    roleId?: any
 }
 
+// Handling create user process
 export const create = async (req: Request, res: Response, next: NextFunction) => {
     // Validate input
     signUpSchema.parse(req.body);
 
-    const { name, email, password, avatar, role } = req.body as IUser;
+    const { name, email, password, roleId } = req.body as IUser;
 
     if (!isAnAcceptablePassword(password)) {
         throw new BadRequestException(`Invalid Password : ${acceptablePasswordPolicy}`, ErrorCode.INVALID_DATA);
     }
 
     // Create user
-    let user = await prismaClient.user.create({
+    const user = await prismaClient.user.create({
         data: {
             name,
             email,
             password: await bcrypt.hash(password, parseInt(SALT_ROUNDS || '10')),
+        }
+    });
+    let role;
+    if (!roleId) {
+        // default role
+        role = await prismaClient.role.findFirst({
+            where: { name: "USER" }
+        });
+    } else {
+        role = await prismaClient.role.findUnique({
+            where: { id: roleId }
+        });
+    }
+    if (!role) throw new BadRequestException(`Something went wrong`, ErrorCode.INVALID_DATA);
+
+    // Assign default role
+    await prismaClient.userRole.create({
+        data: {
+            userId: user.id,
+            roleId: role.id,
         }
     });
 
@@ -51,7 +73,7 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
     await prismaClient.notification.create({
         data: {
             email: user.email,
-            message: `Here are your credentials: **Email**: ${user.email}  **Temporary Password**: ${password}`,
+            message: `**Email** : ${user.email} " <br/> **Temporary Password**: ${password}`,
             method: NotificationMethod.EMAIL,
             subject: "Your account has been created successfully.",
             template: "new.mail.ejs",
@@ -67,11 +89,13 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
 
 
 //-----------------------------------------------
-//       Get All Users  -- only for admin users
+//       Get All Users : get users
 //-----------------------------------------------
+
+// Handling the process GET users information 
 export const get =
     async (req: Request, res: Response, next: NextFunction) => {
-        const usersJSON = await redis.get("allusers");
+        const usersJSON = await redis.get(key);
         if (usersJSON) {
             const users = JSON.parse(usersJSON);
             res.status(200).json({
@@ -80,7 +104,7 @@ export const get =
             });
         } else {
             const users = await prismaClient.user.findMany({
-                where: { createdAt: 'desc' }
+                orderBy: { createdAt: 'desc' }
             });
             await redis.set(key, JSON.stringify(users));
             res.status(200).json({
@@ -91,15 +115,102 @@ export const get =
     };
 
 
+//-----------------------------------------------------------------------------
+//             GET USER BY ID : get /users/:id
+//-----------------------------------------------------------------------------
+
+// Handling the process GET user by ID 
+export const getById =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+
+        const data = await prismaClient.user.findUnique({
+            where: { id: id },
+        });
+        if (!data) throw new NotFoundException("User not found", ErrorCode.RESSOURCE_NOT_FOUND);
+
+        res.status(200).json({
+            success: true,
+            data: data
+        });
+
+    };
+
+
+//-----------------------------------------------------------------------------
+//             UPDATE USER : put  /users/:id
+//-----------------------------------------------------------------------------
+
+// Handling  user udpdate process
+export const update =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+        if (!idSchema.parse(id)) throw new BadRequestException('Invalid ID format', ErrorCode.INVALID_DATA)
+
+        const parsedInput = updateSchema.parse(req.body); // Validate input
+        const data = await prismaClient.user.update({
+            where: { id: id },
+            data: parsedInput,
+        });
+        revalidateService(key);
+
+        res.status(200).json({
+            success: true,
+            data: data
+        });
+
+    };
+
+
+//-----------------------------------------------------------------------------
+//             DELETE USER : delete  /users/:id
+//-----------------------------------------------------------------------------
+
+// Handling delete user process
+export const remove =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+        if (!idSchema.parse(id)) throw new BadRequestException('Invalid ID format', ErrorCode.INVALID_DATA)
+
+        await prismaClient.userRole.deleteMany({
+            where: { userId: id }
+        });
+
+        await prismaClient.user.delete({
+            where: { id: id }
+        });
+        revalidateService(key);
+
+        res.status(204).send(); // No content
+
+    };
+
+
 //-----------------------------------------------
 //              get user notifications
 //-----------------------------------------------
 export const getUserNotification =
     async (req: Request, res: Response, next: NextFunction) => {
 
-        const notifications = await prismaClient.internalNotification
+        console.log("user",req.user);
+        if (!req.user?.id) {
+            throw new BadRequestException('Please first login if you want to achieve this action', ErrorCode.INVALID_DATA)
+        }
+      
+
+        const notifications = await prismaClient.notification
             .findMany(
-                { where: { createdAt: "desc" } }
+                {
+                    where: {
+                        userId: req.user.id, // Récupérer les notifications pour l'utilisateur spécifique
+                        NOT: {
+                            userId: null, // Exclure les notifications où userId est null
+                        },
+                    },
+                }
             )
 
         res.status(200).json({
@@ -125,7 +236,6 @@ export const addUserRole =
         if (!parsedData) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
         const redis_roles = await redis.get('roles');
         const data = JSON.parse(redis_roles || '');
-        console.log('data', data);
 
 
         // const validRoles: string[] = ["admin", "teacher", ;
@@ -150,8 +260,6 @@ export const removeUserRole =
 
         const redis_roles = await redis.get('roles');
         const data = JSON.parse(redis_roles || '');
-        console.log('data', data);
-
 
         // const validRoles: string[] = ["admin", "teacher", ;
         // if (!validRoles.includes(role)) {
@@ -167,3 +275,14 @@ export const removeUserRole =
         // updateUserRoleService(res, userId, role);
 
     };
+
+
+const revalidateService = async (key: string) => {
+    const data = await prismaClient.user.findMany({
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    await redis.set(key, JSON.stringify(data));
+    return data
+}

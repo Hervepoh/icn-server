@@ -33,7 +33,11 @@ const roles = ['ADMIN', 'USER', 'ASSIGNATOR', 'VALIDATOR', 'MANAGER'];
 // Liste des permissions
 const services = Object.values(serviceType);
 const permissions = [
-  'CREATE', 'READ', 'WRITE', 'UPDATE', 'DELETE', 'BULKCREATE', 'BULKDELETE'
+  'CREATE', 'READ', 'WRITE', 'UPDATE', 'DELETE', 'BULKCREATE', 'BULKDELETE', 'SEARCH'
+];
+const customPermissions = [
+  "ICN-NEXTCODE", 'ICN-NEXTDEMATERIALIZATION', "ICN-GROUPES", "ICN-DOCUMENTS",
+  "USER-READNOTIFICATION","USER-ROLE","USER-ADDROLE","USER-REMOVEROLE","USER-NOTIFICATION"
 ];
 const servicePermissions = services.flatMap(service =>
   permissions.map(permission => `${service}-${permission}`)
@@ -79,12 +83,9 @@ async function main() {
   console.log(`Cache cleared.`);
 
   // Vider les tables
-  await prisma.status.deleteMany({});
-  await prisma.bank.deleteMany({});
-  await prisma.connectionHistory.deleteMany({});
-  await prisma.internalNotification.deleteMany({});
+
+  await prisma.audit.deleteMany({});
   await prisma.notification.deleteMany({});
-  await prisma.paymentMode.deleteMany({});
   await prisma.userRole.deleteMany({});
   await prisma.rolePermission.deleteMany({});
   await prisma.permission.deleteMany({});
@@ -92,6 +93,9 @@ async function main() {
   await prisma.transactionDetail.deleteMany({});
   await prisma.transaction.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.paymentMode.deleteMany({});
+  await prisma.status.deleteMany({});
+  await prisma.bank.deleteMany({});
 
   console.log(`Tables cleared.`);
 
@@ -106,6 +110,7 @@ async function main() {
   createdBanks.forEach(item => {
     console.log(`Created payment Mode with id: ${item.id}`);
   });
+  /////////////////////////////////////
 
   // Créer les Banques
   const payModePromises = paymentModes.map(item =>
@@ -118,7 +123,7 @@ async function main() {
   createdPaymentModes.forEach(item => {
     console.log(`Created payment Mode with id: ${item.id}`);
   });
-  
+  /////////////////////////////////////
 
   // Créer les permissions
   const permissionPromises = servicePermissions.map(permission =>
@@ -131,6 +136,16 @@ async function main() {
   createdPermissions.forEach(item => {
     console.log(`Created permission with id: ${item.id}`);
   });
+  const customPermissionsPromises = customPermissions.map(item =>
+    prisma.permission.create({
+      data: { name: item },
+    })
+  );
+  const createdCustomPermissions = await Promise.all(customPermissionsPromises);
+  createdCustomPermissions.forEach(item => {
+    console.log(`Created permission with id: ${item.id}`);
+  });
+  /////////////////////////////////////
 
   // Créer les roles
   const rolePromises = roles.map(role =>
@@ -143,6 +158,7 @@ async function main() {
   createdRoles.forEach(item => {
     console.log(`Created role with id: ${item.id}`);
   });
+  /////////////////////////////////////
 
   // Créer les utilisateurs
   const userPromises = users.map(async u =>
@@ -157,6 +173,7 @@ async function main() {
   createdUsers.forEach(user => {
     console.log(`Created user with id: ${user.id}`);
   });
+  /////////////////////////////////////
 
   // (Optionnel) Associer les rôles aux utilisateurs
   const USER_ADMIN = await prisma.user.findFirst({
@@ -184,9 +201,23 @@ async function main() {
     });
   }
 
-  // (Optionnel) Associer certaines permissions aux rôles
+  // (Optionnel) Associer les permissions aux rôles
   for (const role of createdRoles) {
     for (const permission of createdPermissions) {
+      const db = await prisma.permission.findUnique({
+        where: { name: permission.name }
+      })
+      if (db) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: role.id,
+            permissionId: db.id,
+          }
+        });
+      }
+
+    }
+    for (const permission of createdCustomPermissions) {
       const db = await prisma.permission.findUnique({
         where: { name: permission.name }
       })

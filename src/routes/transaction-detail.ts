@@ -5,7 +5,7 @@ import { errorHandler } from "../error-handler";
 import authMiddleware, { authorizeMiddleware } from "../middlewares/auth";
 import { create, get, update , remove, bulkCreate, bulkUpdate  } from "../controllers/transaction-details";
 
-const serviceName = serviceType.TRANSACTION;
+const serviceName = serviceType.TRANSACTIONDETAIL;
 const transactionDetailRoutes:Router = Router();
 
 transactionDetailRoutes.post('/',  [authMiddleware,authorizeMiddleware(`${serviceName}-CREATE`)] , errorHandler(create));

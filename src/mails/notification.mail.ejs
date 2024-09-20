@@ -20,7 +20,7 @@
         }
 
         a {
-            color: #136f26;
+            color: #000;
             text-decoration: none;
         }
 
@@ -74,26 +74,17 @@
             padding: 12px 24px;
             border-radius: 4px;
         }
-        .center {
-            text-align: center;
-        }
     </style>
 </head>
 
 <body>
     <div class="email-wrapper">
         <div class="email-header">
-            <h1>ICN CASHING</h1>
+            <h1><%= from %></h1>
         </div>
         <div class="email-body">
-            <h1>Hello <%= user.name %>,</h1>
-            <p>We are excited to inform you that your account has been successfully created.</p>
-            <p class="center">
-                <%= text %> . You can click here to <a href="https://yourapp.com/login">Link</a>
-            </p>
-            <p>If you have any questions or need assistance, feel free to reach out to us.</p>
-            <p>Thank you and welcome to our community!</p>
-            <p>Best regards,<br>Digital application Team</p>
+           <p>Hello <%= user.name %>,</p>
+           <p><%= text %></p>
         </div>
         <div class="email-footer">
            <p>If you have any questions , feel free to contact us at <a href="mailto:<%= supportmail %>"><%= supportmail %></a></p>

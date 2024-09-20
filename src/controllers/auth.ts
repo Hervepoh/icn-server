@@ -19,18 +19,8 @@ import { ACCESS_TOKEN_EXPIRE, ACCESS_TOKEN_SECRET, ACTIVATION_TOKEN_EXPIRE, ACTI
 import { EventType } from "../constants/enum";
 import { UserEntity } from "../entities/user";
 import { signUpSchema } from "../schema/users";
-
-export interface IUser extends Document {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-    isVerified: boolean;
-    comparePassword: (password: string) => Promise<boolean>;
-    signAccessToken: () => string;
-    signRefreshToken: () => string;
-}
-
+import { SourceType } from "@prisma/client";
+import UnprocessableException from "../exceptions/validation";
 
 //-----------------------------------------------------------------------------
 //              Register User  /register  /signup
@@ -143,6 +133,17 @@ export const createActivationToken = (user: any): IActivationToken => {
 interface IActivationRequest {
     activation_token: string;
     activation_code: string;
+}
+
+export interface IUser extends Document {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    isVerified: boolean;
+    comparePassword: (password: string) => Promise<boolean>;
+    signAccessToken: () => string;
+    signRefreshToken: () => string;
 }
 
 export const activate =
@@ -273,7 +274,6 @@ export const signin =
                 },
             },
         });
-        console.log(role)
 
         const userEntity = new UserEntity({ ...user, role });
         const isPasswordMatched = await userEntity.comparePassword(password);
@@ -281,17 +281,34 @@ export const signin =
             return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
         }
 
-        // Connection History
-        await prismaClient.connectionHistory.create({
+        // When every thing is ok send Token to user
+        const accessToken = userEntity.signAccessToken();
+        const refreshToken = userEntity.signRefreshToken();
+
+        //Upload session to redis
+        const session = { ...user, role, ipAddress: req.ip, accessToken, refreshToken };
+        redis.set(accessToken, JSON.stringify(session) as any, "EX", ACCESS_TOKEN_EXPIRE)
+        redis.set(refreshToken, JSON.stringify({ ...session }) as any, "EX", REFRESH_TOKEN_EXPIRE)
+
+        // Audit entry for tracking purpose
+        await prismaClient.audit.create({
             data: {
                 userId: user.id,
-                ipAddress: req.ip || '0.0.0.0',
-                eventType: EventType.LOGIN
+                ipAddress: req.ip,
+                action: EventType.LOGIN,
+                details: `User : ${user.email} has logged in`,
+                endpoint: '/login',
+                source: SourceType.USER
             },
         });
 
-        // When every thing is ok send Token to user
-        sendToken(userEntity, 200, res);
+        res.status(200).json({
+            success: true,
+            message: 'User successfully logged in',
+            user: userEntity.cleanUser(),
+            accessToken,
+            refreshToken
+        });
     };
 
 
@@ -303,28 +320,26 @@ export const signin =
 export const signout =
     async (req: Request, res: Response, next: NextFunction) => {
 
-        res.cookie("access_token", "", { maxAge: 1 });
-        res.cookie("refresh_token", "", { maxAge: 1 });
+        if (!req.user?.accessToken) throw new HttpException('Something went wrong', 500, ErrorCode.INTERNAL_EXCEPTION, ['accessToken unavalaible'])
+        // Delete in redis the user access token to logout the user
+        redis.del(req.user?.accessToken);
 
-        const userId = req.user?.id;
-        if (userId) {
-            // Delete in redis the user id
-            redis.del(userId);
+        // Audit entry for tracking purpose
+        await prismaClient.audit.create({
+            data: {
+                userId: req.user.id,
+                ipAddress: req.ip,
+                action: EventType.LOGIN,
+                details: `User : ${req.user.email} has logged out`,
+                endpoint: '/logout',
+                source: SourceType.USER
+            },
+        });
 
-            // Disconnection History
-            await prismaClient.connectionHistory.create({
-                data: {
-                    userId: userId,
-                    ipAddress: req.ip || '0.0.0.0',
-                    eventType: EventType.LOGOUT
-                },
-            });
-        }
         res.status(200).json({
             success: true,
             message: "Logged out successfully",
         });
-
     };
 
 
@@ -334,51 +349,48 @@ export const signout =
 
 export const updateAccessToken =
     async (req: Request, res: Response, next: NextFunction) => {
-        // const refresh_token = req.headers.refresh_token;
-        const refresh_token = req.cookies.refresh_token as string;
-        console.log("refresh_token", refresh_token);
-        const message = "Could not refresh token , please login for access this ressource.";
-        if (!refresh_token) return next(new UnauthorizedException(message, ErrorCode.UNAUTHORIZE));
-        
-   
+
+        // const refresh_token = req.cookies.refresh_token as string;
+        const refresh_token = req.headers.authorization as string;
+
+        if (!refresh_token) return next(new UnauthorizedException("Could not refresh token , please provide an authorization token.", ErrorCode.UNAUTHORIZE));
+
         const decoded = jwt.verify(
             refresh_token,
             REFRESH_TOKEN_SECRET as string
         ) as JwtPayload;
+        if (!decoded) return next(new UnauthorizedException("Unauthorized: Access token is not valid, please login to access this resource", ErrorCode.UNAUTHORIZE))
 
-        if (!decoded) {
-            throw new UnauthorizedException(message, ErrorCode.UNAUTHORIZE);
-        }
-        console.log("decode", decoded);
-        console.log("ok");
-
-        const session = await redis.get(decoded.id);
+        const session = await redis.get(refresh_token);
         if (!session) {
-            throw new UnauthorizedException(message, ErrorCode.UNAUTHORIZE);
+            throw new UnauthorizedException("Could not refresh token , please login for access this ressource.", ErrorCode.UNAUTHORIZE);
         }
-  
-        const user = JSON.parse(session);
 
+        const userSession = JSON.parse(session);
+    
         const accessToken = jwt.sign(
-            { id: user.id },
+            { id: userSession.id },
             ACCESS_TOKEN_SECRET,
             { expiresIn: expiredFormat(ACCESS_TOKEN_EXPIRE) }
         );
-
+        
         const refreshToken = jwt.sign(
-            { id: user.id },
+            { id: userSession.id },
             REFRESH_TOKEN_SECRET,
             { expiresIn: expiredFormat(REFRESH_TOKEN_EXPIRE) }
         );
+   
+        // // Add User in the request to user it in any request
+        req.user = {...userSession};
+        
+        // res.cookie("access_token", accessToken, accessTokenOptions);
+        // res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 
-        // Add User in the request to user it in any request
-        req.user = user;
+        // //Update redis session
+        const newSession = { ...userSession, ipAddress: req.ip, accessToken, refreshToken };
+        redis.set(accessToken, JSON.stringify(newSession) as any, "EX", ACCESS_TOKEN_EXPIRE)
+        redis.set(refreshToken, JSON.stringify(newSession) as any, "EX", REFRESH_TOKEN_EXPIRE)
 
-        res.cookie("access_token", accessToken, accessTokenOptions);
-        res.cookie("refresh_token", refreshToken, refreshTokenOptions);
-
-        //Update redis session
-        redis.set(user.id, JSON.stringify(user), "EX", REDIS_SESSION_EXPIRE);
 
         res.status(200).json({
             success: true,

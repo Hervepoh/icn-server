@@ -11,10 +11,12 @@ export enum NotificationType {
 export enum serviceType {
     SUMMARY = "SUMMARY",
     TRANSACTION = "TRANSACTION",
+    TRANSACTIONDETAIL = "TRANSACTIONDETAIL",
     PAYMENTMODE = "PAYMENTMODE",
     BANK = "BANK",
     ICN = "ICN",
     UNPAID = "UNPAID",
+    USER = "USER",
     ROLE = "ROLE",
     PERMISSION = "PERMISSION",
     NOTIFICATION = "NOTIFICATION",

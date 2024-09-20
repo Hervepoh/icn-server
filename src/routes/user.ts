@@ -1,15 +1,22 @@
 import { Router } from "express";
 
 import { errorHandler } from "../error-handler";
-import { addUserRole, create, get, getUserNotification, removeUserRole } from "../controllers/user";
+import authMiddleware, { authorizeMiddleware } from "../middlewares/auth";
+import { addUserRole, create, get, getById, getUserNotification, remove, removeUserRole, update } from "../controllers/user";
+import { serviceType } from "../constants/enum";
 
+
+const serviceName = serviceType.USER;
 const userRoutes:Router = Router();
 
-userRoutes.post('/', errorHandler(create));
-userRoutes.get('/', errorHandler(get));
-userRoutes.get('/notifications', errorHandler(getUserNotification));
+userRoutes.post('/',[authMiddleware,authorizeMiddleware(`${serviceName}-CREATE`)], errorHandler(create));
+userRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)],errorHandler(get));
+userRoutes.get('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)],errorHandler(getById));
+userRoutes.put('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-UPDATE`)],errorHandler(update));
+userRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`)],errorHandler(remove));
+userRoutes.get('/notifications',[authMiddleware,authorizeMiddleware(`${serviceName}-READNOTIFICATION`,`${serviceName}-NOTIFICATION`)], errorHandler(getUserNotification));
 
-userRoutes.post('/role', errorHandler(addUserRole));
-userRoutes.delete('/role', errorHandler(removeUserRole));
+userRoutes.post('/role',[authMiddleware,authorizeMiddleware(`${serviceName}-ADDROLE`,`${serviceName}-ROLE`)], errorHandler(addUserRole));
+userRoutes.delete('/role',[authMiddleware,authorizeMiddleware(`${serviceName}-REMOVEROLE`,`${serviceName}-ROLE`)], errorHandler(removeUserRole));
 
 export default userRoutes;

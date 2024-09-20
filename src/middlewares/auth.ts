@@ -12,7 +12,7 @@ import { User } from "@prisma/client";
 // Extend the Request interface
 declare module 'express' {
     interface Request {
-        user?: User & { role?: any } & { roles?: any[] };
+        user?: User & { role?: any , roles?: any[] ,  ipAddress?: string, accessToken?:string, refreshToken?:string  };
     }
 }
 
@@ -20,8 +20,9 @@ declare module 'express' {
 // Authenticated User
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     // 1. extract the token from the headers
-    const access_token = req.cookies.access_token;
-    //const access_token = req.headers.authorization;
+    // const access_token = req.cookies.access_token;
+    const access_token = req.headers.authorization;
+
     if (!access_token) {
         return next(new UnauthorizedException("Unauthorized: Please login to access this ressource", ErrorCode.UNAUTHORIZE))
     }
@@ -33,23 +34,29 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
             return next(new UnauthorizedException("Unauthorized: Access token is not valid, please login to access this resource", ErrorCode.UNAUTHORIZE))
         }
         // 4. Get the redis user from the payload
-        const user = await redis.get(payload.id);
-        if (!user) {
-            // Check if user is in the database
-            const userDB = await prismaClient.user.findFirst({
-                where: { id: payload.id },
-                include: { roles: true }, // Include roles relation
-            });
-            if (!userDB) {
-                return next(new UnauthorizedException("Unauthorized: Please login to access this resource", ErrorCode.UNAUTHORIZE));
-            }
-            // 5. Attach the user to the current request object
-            req.user = userDB;
-            // TOTO: set userBD in redis to avoid to fetch again the database
-        } else {
-            // 5. Attach the user to the current request object
-            req.user = JSON.parse(user); // Parse the user from Redis
+        const access_token_authentificate = await redis.get(access_token);
+        if (!access_token_authentificate) {
+            return next(new UnauthorizedException("Unauthorized: Access token is not valid, please login to access this resource", ErrorCode.UNAUTHORIZE))
         }
+        // 5. Attach the user to the current request object
+        req.user = JSON.parse(access_token_authentificate); // Parse the user from Redis
+
+        // if (!user) {
+        //     // Check if user is in the database
+        //     const userDB = await prismaClient.user.findFirst({
+        //         where: { id: payload.id },
+        //         include: { roles: true }, // Include roles relation
+        //     });
+        //     if (!userDB) {
+        //         return next(new UnauthorizedException("Unauthorized: Please login to access this resource", ErrorCode.UNAUTHORIZE));
+        //     }
+        //     // 5. Attach the user to the current request object
+        //     req.user = userDB;
+        //     // TOTO: set userBD in redis to avoid to fetch again the database
+        // } else {
+        //     // 5. Attach the user to the current request object
+        //     req.user = JSON.parse(user); // Parse the user from Redis
+        // }
 
         next();
 
@@ -110,14 +117,14 @@ export const authorizeMiddleware = (...allowedPermissions: string[]) => {
         // const userPermissions = permissions.flatMap(rolePermissions =>
         //     rolePermissions.map(rp => rp.permission.name)
         // );
-        const userPermissions =  permissions.flatMap(rolePermission => rolePermission.permission.name);
-    
+        const userPermissions = permissions.flatMap(rolePermission => rolePermission.permission.name);
+
         const hasPermission = userPermissions.some(permission => allowedPermissions.includes(permission));
 
         if (!hasPermission) {
             return next(new HttpException(`Forbidden: You do not have permission to access this resource`, 403, ErrorCode.UNAUTHORIZE, null));
         }
-        
+
 
         next();
     }
