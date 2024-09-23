@@ -304,8 +304,8 @@ export const signin =
 
         res.status(200).json({
             success: true,
-            message: 'User successfully logged in',
-            user: userEntity.cleanUser(),
+            // message: 'User successfully logged in',
+            //user: userEntity.cleanUser(),
             accessToken,
             refreshToken
         });
@@ -409,9 +409,6 @@ export const updateAccessToken =
 // Handling the me process
 export const me =
     async (req: Request, res: Response, next: NextFunction) => {
-        res.status(200).json({
-            success: true,
-            user: req.user,
-        });
+        res.status(200).json({ ...req.user});
     };
 

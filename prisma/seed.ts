@@ -28,7 +28,7 @@ const status = [
 ];
 
 // Liste des rôles
-const roles = ['ADMIN', 'USER', 'ASSIGNATOR', 'VALIDATOR', 'MANAGER'];
+const roles = ['ADMIN', 'USER', 'VALIDATOR', 'ASSIGNATOR', 'COMMERCIAL', 'MANAGER'];
 
 // Liste des permissions
 const services = Object.values(serviceType);
@@ -37,8 +37,36 @@ const permissions = [
 ];
 const customPermissions = [
   "ICN-NEXTCODE", 'ICN-NEXTDEMATERIALIZATION', "ICN-GROUPES", "ICN-DOCUMENTS",
-  "USER-READNOTIFICATION","USER-ROLE","USER-ADDROLE","USER-REMOVEROLE","USER-NOTIFICATION"
+  "USER-READNOTIFICATION", "USER-ROLE", "USER-ADDROLE", "USER-REMOVEROLE", "USER-NOTIFICATION",
+   "TRANSACTION-PUBLISH","TRANSACTION-VALIDATE","TRANSACTION-ASSIGN"
 ];
+
+// Permissions spécifique a attribuer par pofil
+const specificPermissionForCOMMERCIAL = [
+  "TRANSACTION-READ",
+  "TRANSACTIONDETAIL-READ", "TRANSACTIONDETAIL-WRITE", "TRANSACTIONDETAIL-BULKCREATE", "TRANSACTIONDETAIL-BULKDELETE",
+  "SUMMARY-READ",
+  "BANK-READ",
+  "PAYMENTMODE-READ",
+  "UNPAID-SEARCH",
+  "ICN-READ",
+  "ROLE-READ",
+  "USER-READNOTIFICATION"
+];
+const specificPermissionForAssignator = ["SUMMARY-READ","TRANSACTION-READ", "TRANSACTION-ASSIGN" ,"USER-SEARCH"];
+const specificPermissionForValidation = ["SUMMARY-READ","TRANSACTION-READ", "TRANSACTION-VALIDATE"];
+const specificPermissionForUSER = [
+  "TRANSACTION-READ", "TRANSACTION-WRITE", "TRANSACTION-PUBLISH", "TRANSACTION-BULKCREATE",
+  "SUMMARY-READ",
+  "BANK-READ",
+  "PAYMENTMODE-READ",
+  "UNPAID-SEARCH",
+  "ICN-READ",
+  "ROLE-READ",
+  "USER-READNOTIFICATION"
+];
+
+
 const servicePermissions = services.flatMap(service =>
   permissions.map(permission => `${service}-${permission}`)
 );
@@ -70,6 +98,21 @@ const users: Prisma.UserCreateInput[] = [
     email: 'mahmoud@eneo.cm',
     password: 'password'
   },
+  {
+    name: 'validateur',
+    email: 'validateur@eneo.cm',
+    password: 'password'
+  },
+  {
+    name: 'assignateur',
+    email: 'assignateur@eneo.cm',
+    password: 'password'
+  },
+  {
+    name: 'commercial',
+    email: 'commercial@eneo.cm',
+    password: 'password'
+  },
 ];
 
 async function main() {
@@ -96,6 +139,9 @@ async function main() {
   await prisma.paymentMode.deleteMany({});
   await prisma.status.deleteMany({});
   await prisma.bank.deleteMany({});
+  await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
+  await prisma.$executeRaw`TRUNCATE TABLE status`;
+  await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
 
   console.log(`Tables cleared.`);
 
@@ -136,6 +182,7 @@ async function main() {
   createdPermissions.forEach(item => {
     console.log(`Created permission with id: ${item.id}`);
   });
+
   const customPermissionsPromises = customPermissions.map(item =>
     prisma.permission.create({
       data: { name: item },
@@ -176,6 +223,7 @@ async function main() {
   /////////////////////////////////////
 
   // (Optionnel) Associer les rôles aux utilisateurs
+  //Pour l' ADMIN
   const USER_ADMIN = await prisma.user.findFirst({
     where: { name: "admin" }
   })
@@ -191,8 +239,59 @@ async function main() {
     });
     console.log(`ROLE ${ROLE_ADMIN.name}  assign to the user ${USER_ADMIN.name}`);
   }
+  //FOR VALIDATOR
+  const USER_VALIDATOR = await prisma.user.findFirst({
+    where: { name: "validateur" }
+  })
+  const ROLE_VALIDATOR = await prisma.role.findFirst({
+    where: { name: "VALIDATOR" }
+  })
+  if (USER_VALIDATOR && ROLE_VALIDATOR) {
+    await prisma.userRole.create({
+      data: {
+        userId: USER_VALIDATOR.id,
+        roleId: ROLE_VALIDATOR.id,
+      }
+    });
+    console.log(`ROLE ${ROLE_VALIDATOR.name}  assign to the user ${USER_VALIDATOR.name}`);
+  }
 
-  for (const user of createdUsers) {
+  //FOR VALIDATOR
+  const USER_COMMERCIAL = await prisma.user.findFirst({
+    where: { name: "commercial" }
+  })
+  const ROLE_COMMERCIAL = await prisma.role.findFirst({
+    where: { name: "COMMERCIAL" }
+  })
+  if (USER_COMMERCIAL && ROLE_COMMERCIAL) {
+    await prisma.userRole.create({
+      data: {
+        userId: USER_COMMERCIAL.id,
+        roleId: ROLE_COMMERCIAL.id,
+      }
+    });
+    console.log(`ROLE ${ROLE_COMMERCIAL.name}  assign to the user ${USER_COMMERCIAL.name}`);
+  }
+
+  //FOR ASSIGNATOR
+  const USER_ASSIGNATOR = await prisma.user.findFirst({
+    where: { name: "assignateur" }
+  })
+  const ROLE_ASSIGNATOR = await prisma.role.findFirst({
+    where: { name: "ASSIGNATOR" }
+  })
+  if (USER_ASSIGNATOR && ROLE_ASSIGNATOR) {
+    await prisma.userRole.create({
+      data: {
+        userId: USER_ASSIGNATOR.id,
+        roleId: ROLE_ASSIGNATOR.id,
+      }
+    });
+    console.log(`ROLE ${ROLE_ASSIGNATOR.name}  assign to the user ${USER_ASSIGNATOR.name}`);
+  }
+
+  //FOR ALL USER
+  for (const user of createdUsers.slice(0, 4)) {
     await prisma.userRole.create({
       data: {
         userId: user.id,
@@ -202,7 +301,7 @@ async function main() {
   }
 
   // (Optionnel) Associer les permissions aux rôles
-  for (const role of createdRoles) {
+  for (const role of createdRoles.slice(0, 1)) {
     for (const permission of createdPermissions) {
       const db = await prisma.permission.findUnique({
         where: { name: permission.name }
@@ -233,14 +332,101 @@ async function main() {
     }
   }
 
+  // role spécial pour les simples utilisateurs
+  const ROLE_USER = await prisma.role.findFirst({
+    where: { name: "USER" }
+  })
+  if (ROLE_USER) {
+    for (const name of specificPermissionForUSER) {
+      const db = await prisma.permission.findUnique({
+        where: { name: name }
+      })
+
+      if (db) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: ROLE_USER.id,
+            permissionId: db.id,
+          }
+        });
+      }
+
+    }
+  }
+
+
+  // role spécial pour les validations
+  if (ROLE_VALIDATOR) {
+    for (const name of specificPermissionForValidation) {
+      const db = await prisma.permission.findUnique({
+        where: { name: name }
+      })
+
+      if (db) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: ROLE_VALIDATOR.id,
+            permissionId: db.id,
+          }
+        });
+      }
+
+    }
+  }
+
+  // role spécial pour les assignateurs
+  if (ROLE_ASSIGNATOR) {
+    for (const name of specificPermissionForAssignator) {
+      const db = await prisma.permission.findUnique({
+        where: { name: name }
+      })
+
+      if (db) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: ROLE_ASSIGNATOR.id,
+            permissionId: db.id,
+          }
+        });
+      }
+
+    }
+  }
+
+
+  // role spécial pour les commerciaux (KAM)
+  if (ROLE_COMMERCIAL) {
+    for (const name of specificPermissionForCOMMERCIAL) {
+      const db = await prisma.permission.findUnique({
+        where: { name: name }
+      })
+
+      if (db) {
+        await prisma.rolePermission.create({
+          data: {
+            roleId: ROLE_COMMERCIAL.id,
+            permissionId: db.id,
+          }
+        });
+      }
+
+    }
+  }
+
+
+
+
   // Créer les status
-  const statusPromises = status.map(item =>
-    prisma.status.create({
-      data: { name: item },
-    })
-  );
-  const createdStatus = await Promise.all(statusPromises);
-  console.log(`Created status: ${status.join(', ')}`);
+  const createdStatus = [];
+    
+  for (const item of status) {
+      const created = await prisma.status.create({
+          data: { name: item },
+      });
+      createdStatus.push(created);
+  }
+  console.log(`Created status: ${createdStatus.map(s => s.name).join(', ')}`);
+
 
   console.log(`##########################`);
   console.log(`##   Seeding finished.  ##`);
@@ -250,6 +436,7 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
+    process.exit(1);
   })
   .catch(async (e) => {
     console.error(e);

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `audits` MODIFY `action` ENUM('LOGIN', 'LOGOUT', 'TRANSACTION') NOT NULL,
+    MODIFY `details` VARCHAR(5000) NOT NULL;

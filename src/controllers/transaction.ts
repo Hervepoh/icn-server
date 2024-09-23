@@ -13,7 +13,9 @@ import { bulkCreateSchema } from "../schema/roles";
 import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
 import { getUserConnected } from "../libs/authentificationService";
-import { Transaction } from '@prisma/client';
+import { SourceType, Transaction } from '@prisma/client';
+import { updateSchema } from "../schema/users";
+import { EventType } from "../constants/enum";
 
 interface TransactionWithRelations extends Transaction {
   bank?: {
@@ -28,6 +30,15 @@ interface TransactionWithRelations extends Transaction {
   user?: {
     name: string;
   };
+  validator?: {
+    name: string;
+  }
+  creator?: {
+    name: string;
+  }
+  modifier?: {
+    name: string;
+  }
 }
 
 const key = 'transactions';
@@ -51,10 +62,10 @@ export const create =
 
     // Validate input
     const parsedTransaction = createSchema.parse(req.body as ITransactionRequest);
-    
+
     const user = await getUserConnected(req);
 
-    const status = await prismaClient.status.findFirst({ where: { name: 'draft'}})
+    const status = await prismaClient.status.findFirst({ where: { name: 'draft' } })
 
     const transaction = await prismaClient.transaction.create({
       data: {
@@ -64,7 +75,7 @@ export const create =
         statusId: status?.id,
         paymentModeId: parsedTransaction.payment_mode,
         paymentDate: parseDMY(parsedTransaction.payment_date),
-        createdBy:  user.id,
+        createdBy: user.id,
         modifiedBy: user?.id,
         userId: user?.id,
       },
@@ -74,6 +85,18 @@ export const create =
     res.status(201).json({
       success: true,
       data: transaction,
+    });
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} created new Transaction : customer ${transaction.name} , amount : ${transaction.amount} , payment date : ${transaction.paymentDate} , payment mode : ${transaction.paymentModeId} , bank : ${transaction.bankId}`,
+        endpoint: '/transactions',
+        source: SourceType.USER
+      },
     });
 
   };
@@ -110,6 +133,21 @@ export const get =
             name: true,
           },
         },
+        validator: {
+          select: {
+            name: true,
+          },
+        },
+        creator: {
+          select: {
+            name: true,
+          },
+        },
+        modifier: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     };
@@ -129,13 +167,31 @@ export const get =
       }
     };
 
+    const { userId } = req.query
+    if (userId) {
+      const validUserId = await prismaClient.user.findFirst({
+        where: { id: userId.toString() },
+      });
+
+      if (!validUserId) throw new BadRequestException('Invalid status filter', ErrorCode.INVALID_DATA);
+      query = {
+        where: { userId: validUserId.id },
+        ...query
+      }
+    };
+
     const transactions = await prismaClient.transaction.findMany(query) as TransactionWithRelations[];
-    console.log("transactions",transactions);
+
     const result = transactions.map((item) => ({
       ...item,
       status: item?.status?.name,
       bank: item?.bank?.name,
-      payment_mode: item?.paymentMode?.name ,
+      payment_mode: item?.paymentMode?.name,
+      payment_date: item?.paymentDate,
+      validatedBy: item?.validator?.name,
+      modifiedBy: item?.modifier?.name,
+      createdBy: item?.creator?.name,
+      createdById: item?.createdBy
     }));
     revalidateService(key);
 
@@ -163,18 +219,7 @@ export const getById =
     if (isCachedExist) {
       data = JSON.parse(isCachedExist);
     } else {
-      data = await prismaClient.transaction.findUnique({
-        where: { id: id },
-        include: { bank: true }
-      });
-
-      // Put into Redis for caching futur purpose
-      await redis.set(
-        id,
-        JSON.stringify(data),
-        "EX",
-        REDIS_SESSION_EXPIRE
-      );
+      data = idService(id);
     }
 
     return res.status(200).json({
@@ -190,25 +235,23 @@ export const getById =
 // Handling Update transaction process
 export const update =
   async (req: Request, res: Response, next: NextFunction) => {
-    let id = req.params.id;
+    const id = req.params.id;
 
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
-    id = idSchema.parse(id);
+    const validatedId = idSchema.parse(id);
 
-    // Check body request param for Security purpose
-    if (
-      req.body.userId ||
-      req.body.assignTo ||
-      req.body.createdAt ||
-      req.body.createdBy ||
-      req.body.createdBy ||
-      req.body.modifiedBy ||
-      req.body.deleted ||
-      req.body.deletedBy ||
-      req.body.deletedAt
-    ) {
-      throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+    // Check body request params for security purposes
+    const forbiddenFields = [
+      'createdAt', 'createdBy',
+      'modifiedBy', 'deleted', 'deletedBy',
+      'deletedAt'
+    ];
+
+    for (const field of forbiddenFields) {
+      if (req.body[field]) {
+        throw new UnauthorizedException("Unauthorized resource", ErrorCode.UNAUTHORIZE);
+      }
     }
 
     // get the user information
@@ -217,46 +260,78 @@ export const update =
     });
     if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
 
-    let data = {
-      ...req.body,
-      modifiedBy: user.id,
-    };
-    if (req.body.payment_date) {
-      data = {
-        ...data,
-        payment_date: new Date(req.body.payment_date),
-      };
-    }
-    // For publish the request
-    if (req.body.status === appConfig.status[2]) {
-      const request = await prismaClient.transaction.findFirst({
-        where: { id: id }
-      });
 
-      if (!request?.reference && request?.paymentDate) {
-        data = {
-          ...data,
-          reference: await genereteICNRef(request.paymentDate)
-        };
+    let data: any = {};
+
+    if (req.body.name) {
+      data.name = req.body.name
+    };
+
+    if (req.body.amount) {
+      data.amount = req.body.amount
+    };
+
+    if (req.body.bank) {
+      data.bankId = req.body.bank
+    };
+
+    if (req.body.payment_mode) {
+      data.paymentModeId = req.body.payment_mode
+    };
+
+    if (req.body.payment_date) {
+      data.paymentDate = new Date(req.body.payment_date)
+    }
+
+    if (req.body.userId) {
+      const userId = await prismaClient.user.findFirst({
+        where: { id: req.body.userId },
+      });
+      if (!userId) throw new BadRequestException("Bad request unvalidate userId", ErrorCode.UNAUTHORIZE);
+      data.userId = userId.id
+    }
+
+    if (req.body.status) {
+      const status = await prismaClient.status.findFirst({
+        where: { name: req.body.status },
+      });
+      if (!status) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+
+      data.statusId = parseInt(status.id.toString());
+
+      // For publish the request  (status === draft)
+      if (req.body.status.toLocaleLowerCase() === appConfig.status[2].toLocaleLowerCase()) {
+        const request = await prismaClient.transaction.findFirst({
+          where: { id: id }
+        });
+
+        if (!request?.reference && request?.paymentDate) {
+          const refId = await genereteICNRef(request.paymentDate);
+          data.reference = refId.reference
+        }
+
+      }
+
+      // For validation
+      if (req.body.status.toLocaleLowerCase() === appConfig.status[3].toLocaleLowerCase()) {
+        data.validatorId = user.id;
+        data.validatedAt = new Date();
+      }
+
+      // For Reject
+      if (req.body.status.toLocaleLowerCase() === appConfig.status[4].toLocaleLowerCase()) {
+        data.validatorId = user.id;
+        data.validatedAt = new Date();
+        data.refusal = true;
+        data.reasonForRefusal = req.body.reasonForRefusal;
       }
 
     }
-    // For validation
-    if (req.body.status === appConfig.status[3]) {
-      data = {
-        ...data,
-        validator: user.id,
-        validetedAt: new Date()
-      };
-    }
-    // For Reject
-    if (req.body.status === appConfig.status[4]) {
-      data = {
-        ...data,
-        validator: user.id,
-        validetedAt: new Date(),
-        refusal: true,
-      };
+
+    data = {
+      ...data,
+      modifiedBy: user.id,
+      updatedAt: new Date()
     }
 
     const result = await prismaClient.transaction.update({
@@ -264,13 +339,8 @@ export const update =
       data: data,
     });
 
-    // Put into Redis for caching futur purpose
-    await redis.set(
-      id,
-      JSON.stringify(result),
-      "EX",
-      REDIS_SESSION_EXPIRE
-    );
+    idService(id);
+    revalidateService(key);
 
     return res.status(200).json({
       success: true,
@@ -430,7 +500,7 @@ export const bulkSoftRemove =
       throw new BadRequestException('Invalid params: IDs are required', ErrorCode.INVALID_DATA);
     }
 
-    ids = ids.map((id:string) => idSchema.parse(id));
+    ids = ids.map((id: string) => idSchema.parse(id));
 
     // Vérifiez si les requêtes existent
     const requests = await prismaClient.transaction.findMany({
@@ -447,7 +517,7 @@ export const bulkSoftRemove =
     });
 
     // Supprimez les entrées correspondantes du cache Redis
-    await Promise.all(ids.map((item:string) => redis.del(item)));
+    await Promise.all(ids.map((item: string) => redis.del(item)));
 
     return res.status(200).json({
       success: true,
@@ -459,7 +529,22 @@ export const bulkSoftRemove =
 
 
 
+const idService = async (id: string) => {
+  const data = await prismaClient.transaction.findUnique({
+    where: { id: id },
+    include: { bank: true, paymentMode: true }
+  });
 
+  // Put into Redis for caching futur purpose
+  await redis.set(
+    id,
+    JSON.stringify(data),
+    "EX",
+    REDIS_SESSION_EXPIRE
+  );
+
+  return data
+}
 
 const revalidateService = async (key: string) => {
   const data = await prismaClient.transaction.findMany({

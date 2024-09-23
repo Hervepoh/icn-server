@@ -39,8 +39,7 @@ export const bulkCreate =
     const user = await prismaClient.user.findUnique({
       where: { id: req.user?.id }
     });
-    if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
-
+    if (!user) throw new UnauthorizedException("Unauthorize ressource due", ErrorCode.UNAUTHORIZE);
     //TODO: check if the user is the assignee of the record
     const isAssignTo = await prismaClient.transaction.findFirst({
       where: {
@@ -48,7 +47,7 @@ export const bulkCreate =
         userId: req.user?.id,
       }
     });
-    if (!isAssignTo) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+    if (!isAssignTo) throw new UnauthorizedException("Unauthorize ressource : please contact assignator", ErrorCode.UNAUTHORIZE);
 
     let data = req.body;
 
@@ -58,11 +57,12 @@ export const bulkCreate =
 
     data = data.map((item: any) => ({
       ...item,
-      amountTopaid: item.amountUnpaid ?? 0,
+      amountUnpaid: parseInt(item.amountUnpaid),
+      amountTopaid: parseInt(item.amountUnpaid) ?? 0,
       transactionId: id
     }));
-
-    await prismaClient.transactionDetail.createMany(data);
+     console.log(data);
+    await prismaClient.transactionDetail.createMany({data:data});
 
     res.status(201).json({
       success: true,
@@ -122,7 +122,7 @@ export const bulkUpdate =
 export const remove =
   async (req: Request, res: Response, next: NextFunction) => {
 
-    const { id } = req.body;
+    const { id } = req.params;
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
     const requestDetail = await prismaClient.transactionDetail.findUnique({

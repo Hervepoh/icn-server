@@ -15,11 +15,11 @@ export const ACCESS_TOKEN_EXPIRE = process.env.ACCESS_TOKEN_EXPIRE || "";
 export const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "";
 export const REFRESH_TOKEN_EXPIRE = process.env.REFRESH_TOKEN_EXPIRE || "";
 
-export const DATABASE_EXTERNAL_SERVICE_NAME: string = process.env.DATABASE_EXTERNAL_SERVICE_NAME || "";
-export const DATABASE_EXTERNAL_HOSTNAME: string = process.env.DATABASE_EXTERNAL_HOSTNAME || "";
-export const DATABASE_EXTERNAL_PORT: string = process.env.DATABASE_EXTERNAL_PORT || "";
-export const DATABASE_EXTERNAL_USERNAME: string = process.env.DATABASE_EXTERNAL_USERNAME || "";
-export const DATABASE_EXTERNAL_PASSWORD: string = process.env.DATABASE_EXTERNAL_PASSWORD || "";
+export const DATABASE_EXTERNAL_SERVICE_NAME = process.env.DATABASE_EXTERNAL_SERVICE_NAME || "";
+export const DATABASE_EXTERNAL_HOSTNAME = process.env.DATABASE_EXTERNAL_HOSTNAME || "";
+export const DATABASE_EXTERNAL_PORT= process.env.DATABASE_EXTERNAL_PORT || "";
+export const DATABASE_EXTERNAL_USERNAME = process.env.DATABASE_EXTERNAL_USERNAME || "";
+export const DATABASE_EXTERNAL_PASSWORD = process.env.DATABASE_EXTERNAL_PASSWORD || "";
 
 
 export const REDIS_HOSTNAME = process.env.REDIS_HOSTNAME;

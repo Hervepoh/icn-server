@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import fs from 'fs';
 import path from 'path';
 import moment from 'moment';
+import cron from "node-cron";
 
 import { sqlQuery } from "../constants/request";
 import prismaClient from "../libs/prismadb";
@@ -149,3 +150,40 @@ export const getICN =
 
 
   };
+
+
+
+  //-----------------------------------------------
+//              delete old notifications -- only for admin
+//-----------------------------------------------
+cron.schedule('0 0 0 * * *', async () => {
+  const thirtyDayAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+//   const newInProcessTransactions: any = await prismaClient.$queryRaw`
+//     SELECT DATE(paymentDate) AS date , COUNT(*) AS count, SUM(amount) AS amount
+//     FROM transactions
+//     WHERE  
+//     deleted=0 AND
+//     paymentDate BETWEEN '2021-08-01' AND '2025-08-01'
+//     GROUP BY DATE(paymentDate)
+//     ORDER BY date ASC;
+// `;
+  console.log('----------------------------');
+  console.log('Integration of processing transaction');
+  console.log('----------------------------');
+
+});
+
+//---------------------------------------------------------
+//              CREATE ICN IntegrationDocument 
+//---------------------------------------------------------
+// export const createIntegrationDocument = async () => {
+//   // search if the name already exists
+//   const isAlready = await prismaClient.bank.findFirst({ where: { name: parsedBank.name } });
+//   if (isAlready) {
+//       throw new UnprocessableException(null, "Duplicate setting name", ErrorCode.RESSOURCE_ALREADY_EXISTS);
+//   }
+//   const data = await prismaClient.integrationDocument.create({
+//       data: parsedBank,
+//   });
+
+// };

@@ -11,6 +11,7 @@ import transactionRoutes from "./transaction";
 import transactionDetailRoutes from "./transaction-detail";
 import summaryRoutes from "./summary";
 import notificationRoutes from "./notification";
+import statusRoutes from "./status";
 
 const rootRouter:Router = Router();
 
@@ -18,6 +19,7 @@ rootRouter.use('/auth' , authRoutes);
 rootRouter.use('/users' , userRoutes);
 rootRouter.use('/roles' , roleRoutes);
 rootRouter.use('/permissions' , permissionRoutes);
+rootRouter.use('/status' , statusRoutes);
 
 rootRouter.use('/summary' , summaryRoutes);
 rootRouter.use('/banks' , bankRoutes);

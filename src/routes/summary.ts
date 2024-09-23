@@ -8,7 +8,7 @@ import { all, me } from "../controllers/summary";
 const serviceName = serviceType.SUMMARY;
 const summaryRoutes:Router = Router();
 
-summaryRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] , errorHandler(all));
+summaryRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] , all);
 summaryRoutes.get('/me', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] ,errorHandler(me));
 
 export default summaryRoutes;

@@ -8,11 +8,11 @@ import { create, get, getById, update , remove,softRemove, bulkCreate, bulkSoftR
 const serviceName = serviceType.TRANSACTION;
 const transactionRoutes:Router = Router();
 
-transactionRoutes.post('/',  [authMiddleware,authorizeMiddleware(`${serviceName}-CREATE`)] , errorHandler(create));
+transactionRoutes.post('/',  [authMiddleware,authorizeMiddleware(`${serviceName}-CREATE`,`${serviceName}-WRITE`)] , errorHandler(create));
 transactionRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] ,errorHandler(get));
 transactionRoutes.get('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] , errorHandler(getById));
-transactionRoutes.put('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-UPDATE`)], errorHandler(update));
-transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`)] , errorHandler(remove));
+transactionRoutes.put('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-UPDATE`,`${serviceName}-VALIDATE`,`${serviceName}-ASSIGN`,`${serviceName}-WRITE`)], errorHandler(update));
+transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`,`${serviceName}-WRITE`)] , errorHandler(remove));
 transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-SOFTDELETE`)] , errorHandler(softRemove));
 
 transactionRoutes.post('/bulk',[authMiddleware,authorizeMiddleware(`${serviceName}-BULKCREATE`)] , errorHandler(bulkCreate));

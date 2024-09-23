@@ -79,6 +79,8 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
             template: "new.mail.ejs",
         },
     });
+    revalidateService(key);
+    revalideCommercialListService(key);
 
     res.status(201).json({
         success: true,
@@ -97,19 +99,40 @@ export const get =
     async (req: Request, res: Response, next: NextFunction) => {
         const usersJSON = await redis.get(key);
         if (usersJSON) {
-            const users = JSON.parse(usersJSON);
+            const data = JSON.parse(usersJSON);
             res.status(200).json({
                 success: true,
-                users,
+                data,
             });
         } else {
-            const users = await prismaClient.user.findMany({
-                orderBy: { createdAt: 'desc' }
-            });
-            await redis.set(key, JSON.stringify(users));
+            const data = await revalidateService(key);
+
             res.status(200).json({
                 success: true,
-                users,
+                data,
+            });
+        }
+    };
+
+//-----------------------------------------------
+//       Get All Users : get users
+//-----------------------------------------------
+
+// Handling the process GET users information 
+export const getCommercialUsers =
+    async (req: Request, res: Response, next: NextFunction) => {
+        const usersJSON = await redis.get(key+'_role_commercial');
+        if (usersJSON) {
+            const data = JSON.parse(usersJSON);
+            res.status(200).json({
+                success: true,
+                data,
+            });
+        } else {
+            const data = await revalideCommercialListService(key);
+            res.status(200).json({
+                success: true,
+                data,
             });
         }
     };
@@ -155,6 +178,7 @@ export const update =
             data: parsedInput,
         });
         revalidateService(key);
+        revalideCommercialListService(key);
 
         res.status(200).json({
             success: true,
@@ -183,6 +207,7 @@ export const remove =
             where: { id: id }
         });
         revalidateService(key);
+        revalideCommercialListService(key);
 
         res.status(204).send(); // No content
 
@@ -250,6 +275,8 @@ export const addUserRole =
         // }
 
         // updateUserRoleService(res, userId, role);
+        revalidateService(key);
+        revalideCommercialListService(key);
 
     };
 
@@ -273,6 +300,8 @@ export const removeUserRole =
         // }
 
         // updateUserRoleService(res, userId, role);
+        revalidateService(key);
+        revalideCommercialListService(key);
 
     };
 
@@ -284,5 +313,29 @@ const revalidateService = async (key: string) => {
         },
     });
     await redis.set(key, JSON.stringify(data));
+    return data
+}
+
+const revalideCommercialListService = async (key: string) => {
+    const data = await prismaClient.user.findMany({
+        where: {
+            roles: {
+                some: {
+                    role: {
+                        name: 'COMMERCIAL', 
+                    },
+                },
+            },
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    await redis.set(key+'_role_commercial', JSON.stringify(data));
     return data
 }

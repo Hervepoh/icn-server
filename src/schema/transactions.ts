@@ -13,6 +13,20 @@ const createSchema = z.object({
   payment_mode: z.string().uuid('Payment mode input format is not available'),
 });
 
+const updateSchema = z.object({
+  name: z.string()
+    .min(1, 'Bank name is required')
+    .max(100, { message: "Bank name Less than 100 caracters." })
+    .regex(/^[a-zA-Z0-9\s]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." })
+    .optional(),
+  amount: z.number().positive().optional(),
+  bankId: z.string().uuid().optional(),
+  payment_mode: z.string().uuid().optional(),
+  payment_date: z.date().optional(),
+  status: z.number().optional(),
+});
+
+
 
 const transactionSchema = z.object({
   reference: z.string().optional(),

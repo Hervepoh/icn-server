@@ -1,6 +1,7 @@
 export enum EventType {
     LOGIN = 'LOGIN',
-    LOGOUT = 'LOGOUT'
+    LOGOUT = 'LOGOUT',
+    TRANSACTION = 'TRANSACTION'
 }
 
 export enum NotificationType {
