@@ -143,20 +143,25 @@ export const getUnpaidBillsByCustomerRegroupNumber =
       throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
     }
 
-    // Fetch data from the database
-    const result = await executeQuery(
-      sqlQuery.unpaid_bills_by_customer_regroup_number,
-      [
-        value,
-        format(FromDate.toString(), "dd/MM/yyyy"),
-        format(ToDate.toString(), "dd/MM/yyyy")
-      ]
-    );
 
-    return res.status(200).json({
-      success: true,
-      bills: result.rows
-    });
+    // Fetch data from the database
+    try {
+      const result = await executeQuery(
+        sqlQuery.unpaid_bills_by_customer_regroup_number,
+        [
+          value, FromDate.toString(), ToDate.toString()
+        ]
+      );
+  
+      return res.status(200).json({
+        success: true,
+        bills: result.rows
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false
+      });
+    }
 
   };
 
@@ -175,20 +180,25 @@ export const getUnpaidBillsByCustomerName =
     if (!FromDate || !ToDate) {
       throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
     }
+    // console.log("value", [
+    //   value,
+    //   format(FromDate.toString(), "dd/MM/yyyy"),
+    //   format(ToDate.toString(), "dd/MM/yyyy")
+    // ])
 
     // Fetch data from the database
-    const result = await executeQuery(
-      sqlQuery.unpaid_bills_by_customer_name,
-      [
-        value,
-        format(FromDate.toString(), "dd/MM/yyyy"),
-        format(ToDate.toString(), "dd/MM/yyyy")
-      ]
-    );
-    return res.status(200).json({
-      success: true,
-      bills: result.rows
-    });
+    try {
+      const result = await executeQuery(sqlQuery.unpaid_bills_by_customer_name, [value, FromDate.toString(), ToDate.toString()]);
+
+      return res.status(200).json({
+        success: true,
+        bills: result.rows
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false
+      });
+    }
 
   };
 
@@ -199,12 +209,19 @@ export const getUnpaidBillsOnList =
   async (req: Request, res: Response, next: NextFunction) => {
 
     // Fetch data from the database
-    const result = await executeQuery(sqlQuery.unpaid_bills_on_list, []);
+    try {
+      const result = await executeQuery(sqlQuery.unpaid_bills_on_list, []);
 
-    return res.status(200).json({
-      success: true,
-      bills: result.rows
-    });
+      return res.status(200).json({
+        success: true,
+        bills: result.rows
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false
+      });
+    }
 
   };
 
@@ -221,11 +238,18 @@ export const getUnpaidBillsOnListWithAccount =
       throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
     }
     // Fetch data from the database
-    const result = await executeQuery(sqlQuery.unpaid_bills_on_list_with_account, [value, FromDate, ToDate]);
+    try {
+      const result = await executeQuery(sqlQuery.unpaid_bills_on_list_with_account, [value, FromDate.toString(), ToDate.toString()]);
 
-    return res.status(200).json({
-      success: true,
-      bills: result.rows
-    });
+      return res.status(200).json({
+        success: true,
+        bills: result.rows
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false
+      });
+    }
+
 
   };

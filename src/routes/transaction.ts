@@ -12,8 +12,8 @@ transactionRoutes.post('/',  [authMiddleware,authorizeMiddleware(`${serviceName}
 transactionRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] ,errorHandler(get));
 transactionRoutes.get('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)] , errorHandler(getById));
 transactionRoutes.put('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-UPDATE`,`${serviceName}-VALIDATE`,`${serviceName}-ASSIGN`,`${serviceName}-WRITE`)], errorHandler(update));
-transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`,`${serviceName}-WRITE`)] , errorHandler(remove));
-transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-SOFTDELETE`)] , errorHandler(softRemove));
+transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`,`${serviceName}-WRITE`)] , errorHandler(softRemove));
+transactionRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-FULLDELETE`)] , errorHandler(remove));
 
 transactionRoutes.post('/bulk',[authMiddleware,authorizeMiddleware(`${serviceName}-BULKCREATE`)] , errorHandler(bulkCreate));
 transactionRoutes.delete('/bulk', [authMiddleware,authorizeMiddleware(`${serviceName}-BULKDELETE`)], errorHandler(bulkSoftRemove));

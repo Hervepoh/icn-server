@@ -106,10 +106,21 @@ export const bulkUpdate =
     //     amountTopaid: row.amountTopaid,
     //   },
     // },
-
-    await prismaClient.transactionDetail.createMany({
-      data: data,
-    });
+ 
+    // await prismaClient.transactionDetail.updateMany({
+    //   data: data,
+    // });
+    console.log("",data,"data");
+    await Promise.all(data.map(async (item) => {
+      await prismaClient.transactionDetail.updateMany({
+        where: {
+          id: item.id, // or any other unique identifier
+        },
+        data: {
+          ...item
+        },
+      });
+    }));
 
     res.status(200).json({
       success: true,

@@ -9,7 +9,7 @@ import BadRequestException from "../exceptions/bad-requests";
 import { ErrorCode } from "../exceptions/http-exception";
 import { appConfig } from "../config/app.config";
 import { REDIS_SESSION_EXPIRE } from "../secrets";
-import { bulkCreateSchema } from "../schema/roles";
+// import { bulkCreateSchema } from "../schema/transactions";
 import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
 import { getUserConnected } from "../libs/authentificationService";
@@ -109,8 +109,8 @@ export const create =
 // Handling get process   
 export const get =
   async (req: Request, res: Response, next: NextFunction) => {
-
-    const soft = req.user?.role !== "admin" ? { deleted: false } : {};
+    console.log(req.user?.role);
+    const soft = req.user?.role.name !== "ADMIN" ? { deleted: false } : {};
     let query: any = {
       include: {
         bank: {
@@ -161,10 +161,12 @@ export const get =
       });
 
       if (!validStatus) throw new BadRequestException('Invalid status filter', ErrorCode.INVALID_DATA);
+
       query = {
         where: { statusId: validStatus.id },
         ...query
       }
+
     };
 
     const { userId } = req.query
@@ -179,6 +181,15 @@ export const get =
         ...query
       }
     };
+
+    if (soft) {
+      query = {
+        where: soft,
+        ...query
+      }
+    }
+
+
 
     const transactions = await prismaClient.transaction.findMany(query) as TransactionWithRelations[];
 
@@ -224,7 +235,10 @@ export const getById =
 
     return res.status(200).json({
       success: true,
-      data,
+      data: {
+        ...data,
+        amount: data.amount.toString(),
+      }
     });
   };
 
@@ -434,7 +448,8 @@ export const bulkCreate =
       throw new BadRequestException("Request body must be a non-empty array", ErrorCode.INVALID_DATA);
     }
 
-    const parsedData = bulkCreateSchema.parse(req.body as IBulkCreateRequest);
+    console.log("body", req.body);
+    // const parsedData = bulkCreateSchema.parse(req.body as IBulkCreateRequest);
     // get the user information
     const user = await prismaClient.user.findFirst({
       where: { id: req.user?.id },
@@ -444,13 +459,10 @@ export const bulkCreate =
     const payMode = await prismaClient.paymentMode.findFirst();
     if (!payMode) throw new ConfigurationException("Payment mode not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
 
-    const bank = await prismaClient.bank.findFirst();
-    if (!payMode) throw new ConfigurationException("Payment mode not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
 
     const validRequests = [];
     // Validate each request
     for (const requestData of requests) {
-
       const { name, amount, bank, payment_date } = requestData;
       console.log("requestData", requestData)
       // Validate required fields for each request
@@ -458,25 +470,33 @@ export const bulkCreate =
         throw new BadRequestException("All fields (payment_date, name, amount, bank) are required for each request", ErrorCode.INVALID_DATA);
       }
 
+      const bankData = await prismaClient.bank.findFirst({
+        where: { id: bank }
+      });
+      if (!bankData) throw new ConfigurationException("bankData not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
+  
+
       // Generate a unique reference if it's not provided
       const uniqueReference = await genereteICNRef(parseDMY(payment_date));
       const data = transactionSchema.parse({
         reference: uniqueReference.reference,
         name,
         amount,
-        bank: bank.id,
-        payment_date: parseDMY(payment_date),
-        payment_mode: payMode.id,
+        bankId: bankData.id,
+        paymentDate: parseDMY(payment_date),
+        paymentModeId: payMode.id,
         createdBy: user.id,
         modifiedBy: user.id,
         userId: user.id,
+        statusId: 2
+
       })
       validRequests.push(data);
-
+      // console.log("data", data)
     }
 
     // Insert all valid requests into the database
-    //const createdRequests = await prismaClient.transaction.createMany(validRequests);
+    const createdRequests = await prismaClient.transaction.createMany({data: validRequests});
 
     res.status(201).json({
       success: true,

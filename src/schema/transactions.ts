@@ -34,21 +34,40 @@ const transactionSchema = z.object({
   name: z.string()
     .min(1, 'Bank name is required')
     .max(100, { message: "Bank name Less than 100 caracters." })
-    .regex(/^[a-zA-Z0-9\s]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." }),
+    .regex(/^[a-zA-Z0-9\s.-]+$/, { message: "The transaction name can only contain letters, numbers, space , dot and minus" }),
   amount: z.number().positive(),
   bankId: z.string().uuid('Bank name is required'),
   paymentDate: z.date(),
   paymentModeId: z.string().uuid(),
-  statusId: z.string().uuid(),
+  statusId: z.number(),
   validatorId: z.string().uuid().optional(),
   createdBy: z.string().optional(),
   modifiedBy: z.string().optional(),
 });
 
-// Define the schema for bulk create requests
-const bulkCreateSchema = z.object({
-  data: z.array(transactionSchema).min(1, { message: "At least one transaction must be provided." })
+const transactionbulkSchema = z.object({
+  userId: z.string().uuid(), // Assurez-vous que c'est un UUID
+  name: z.string()
+    .min(1, 'Bank name is required')
+    .max(100, { message: "Bank name Less than 100 caracters." })
+    .regex(/^[a-zA-Z0-9\s]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." }),
+  amount: z.number().positive(),
+  bankId: z.string().uuid('Bank name is required'),
+  paymentDate: z.date(),
+ // paymentModeId: z.string().uuid(),
 });
+
+// Define the schema for bulk create requests
+// const bulkCreateSchema = z.array({
+//   // data: z.object(transactionbulkSchema).min(1, { message: "At least one transaction must be provided." })
+//   name: z.string(),
+//   // .min(1, 'Bank name is required'),
+//   // .max(100, { message: "Bank name Less than 100 caracters." })
+//   // .regex(/^[a-zA-Z0-9\s]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." }),
+// amount: z.number().positive(),
+// bankId: z.string().uuid('Bank name is required'),
+// paymentDate: z.date(),
+// });
 
 // Define the schema for bulk delete requests
 const bulkDeleteSchema = z.object({
@@ -56,4 +75,4 @@ const bulkDeleteSchema = z.object({
 });
 
 // Export the schemas
-export { transactionSchema, idSchema, createSchema, bulkCreateSchema, bulkDeleteSchema };
+export { transactionSchema, idSchema, createSchema, bulkDeleteSchema };
