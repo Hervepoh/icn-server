@@ -1,18 +1,66 @@
 import fs from 'fs';
 import path from 'path';
 
+// Énumération pour les niveaux de log
+enum LogLevel {
+  INFO = 'INFO',
+  WARNING = 'WARNING',
+  ERROR = 'ERROR',
+}
+
+// Énumération pour les types d'erreur
+enum ErrorType {
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  AUTHORIZATION_ERROR = 'AUTHORIZATION_ERROR',
+  GENERAL_ERROR = 'GENERAL_ERROR',
+}
+
+
 // Fonction pour écrire dans le fichier de log
-export function logErrorToFile(error: string) {
-  const logFilePath = path.join(__dirname, '../../../error.log'); // Chemin du fichier de log
-  const timestamp = new Date().toISOString(); // Obtenir un timestamp ISO
+export function writeLogEntry  (
+  message: string, 
+  level: LogLevel = LogLevel.INFO, 
+  type: ErrorType = ErrorType.GENERAL_ERROR, 
+  errors?: string | object | Array<string | object> ) {
+  const logDir = path.join(__dirname, '../../../logs'); // Répertoire des logs
+  const today = new Date().toISOString().split('T')[0]; // Obtenir la date au format YYYY-MM-DD
+  const logFilePath = path.join(logDir, `log-${today}.log`); // Chemin du fichier de log quotidien
+
+  // Créer le répertoire s'il n'existe pas
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  const now = new Date();
+  const timestamp = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
 
   // Formater le message d'erreur
-  const logMessage = `${timestamp} - ERROR: ${error}\n`;
+  let  logMessage = `${timestamp} - ${level} - ${type}: ${message}\n`;
 
-  // Écrire dans le fichier
-  fs.appendFile(logFilePath, logMessage, (err) => {
+  // Ajouter des informations supplémentaires si elles existent
+  if (errors) {
+    logMessage += `Additional Info: ${JSON.stringify(errors)}\n`;
+  }
+
+  // Vérifier si le fichier du jour existe déjà
+  fs.access(logFilePath, fs.constants.F_OK, (err) => {
     if (err) {
-      console.error('Failed to write to log file:', err);
+      // Le fichier n'existe pas, on peut le créer
+      fs.writeFile(logFilePath, logMessage, (writeErr) => {
+        if (writeErr) {
+          console.error('Failed to create log file:', writeErr);
+        }
+      });
+    } else {
+      // Le fichier existe, on l'append
+      fs.appendFile(logFilePath, logMessage, (appendErr) => {
+        if (appendErr) {
+          console.error('Failed to write to log file:', appendErr);
+        }
+      });
     }
   });
 }
