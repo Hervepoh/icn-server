@@ -5,6 +5,7 @@ import { ErrorCode } from "../exceptions/http-exception";
 import { Client } from 'ldapts';
 import BadRequestException from "../exceptions/bad-requests";
 import NotFoundException from "../exceptions/not-found";
+import { LogLevel, LogType, writeLogEntry } from "./utils/log";
 
 export const getUserConnected = async (req: Request) => {
     const user = await prismaClient.user.findFirst({
@@ -26,7 +27,7 @@ export const ldapLogin = async (userId: string, password: string) => {
         await client.bind(`${userId}@camlight.cm`, password);
         return true;
     } catch (error) {
-        console.error('Erreur lors de la liaison :', error);
+        writeLogEntry('${userId}@camlight.cm', LogLevel.INFO, LogType.AUTHENTICATION);
         throw new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA);
     }finally {
         // Assurez-vous de vous défaire de la liaison

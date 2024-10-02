@@ -282,20 +282,18 @@ export const signin =
         // Extract userId from email
         const userId = email.split('@')[0]; // Get the part before '@'
          
-
-        writeLogEntry('login')
         // LDAP authentication
-        // if (user.ldap) {
-        //     isLdapAuthentificated = await ldapLogin(userId, password);
-        //     if (!isLdapAuthentificated) {
-        //         return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
-        //     }
-        // }else {
-        //     const isPasswordMatched = await userEntity.comparePassword(password);
-        //     if (!isPasswordMatched) {
-        //         return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
-        //     }
-        // }
+        if (user.ldap) {
+            const isLdapAuthentificated = await ldapLogin(userId, password);
+            if (!isLdapAuthentificated) {
+                return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
+            }
+        }else {
+            const isPasswordMatched = await userEntity.comparePassword(password);
+            if (!isPasswordMatched) {
+                return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
+            }
+        }
         
         // When every thing is ok send Token to user
         const accessToken = userEntity.signAccessToken();
