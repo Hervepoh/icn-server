@@ -21,6 +21,7 @@ import { UserEntity } from "../entities/user";
 import { signUpSchema } from "../schema/users";
 import { SourceType } from "@prisma/client";
 import UnprocessableException from "../exceptions/validation";
+import { ldapLogin } from "../libs/authentificationService";
 
 //-----------------------------------------------------------------------------
 //              Register User  /register  /signup
@@ -224,7 +225,7 @@ interface ILoginRequest {
 export const signin =
     async (req: Request, res: Response, next: NextFunction) => {
         const { email, password, roleId }: ILoginRequest = req.body;
-
+     
         // Validation of user inputs
         if (!email || !password) {
             throw new BadRequestException("Please enter both Email and Password", ErrorCode.UNFULLFIELD_REQUIRED_FIELD);
@@ -274,8 +275,21 @@ export const signin =
                 },
             },
         });
-
+   
         const userEntity = new UserEntity({ ...user, role });
+        
+        // Extract userId from email
+        const userId = email.split('@')[0]; // Get the part before '@'
+      
+        // LDAP authentication
+        let ldapUser;
+        try {
+            ldapUser = await ldapLogin(userId, password);
+          
+            console.log("ldap connection ok",ldapUser);
+        } catch (error) {
+            return next(error); // Handle LDAP errors
+        }
         const isPasswordMatched = await userEntity.comparePassword(password);
         if (!isPasswordMatched) {
             return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
@@ -367,22 +381,22 @@ export const updateAccessToken =
         }
 
         const userSession = JSON.parse(session);
-    
+
         const accessToken = jwt.sign(
             { id: userSession.id },
             ACCESS_TOKEN_SECRET,
             { expiresIn: expiredFormat(ACCESS_TOKEN_EXPIRE) }
         );
-        
+
         const refreshToken = jwt.sign(
             { id: userSession.id },
             REFRESH_TOKEN_SECRET,
             { expiresIn: expiredFormat(REFRESH_TOKEN_EXPIRE) }
         );
-   
+
         // // Add User in the request to user it in any request
-        req.user = {...userSession};
-        
+        req.user = { ...userSession };
+
         // res.cookie("access_token", accessToken, accessTokenOptions);
         // res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 
@@ -409,6 +423,6 @@ export const updateAccessToken =
 // Handling the me process
 export const me =
     async (req: Request, res: Response, next: NextFunction) => {
-        res.status(200).json({ ...req.user});
+        res.status(200).json({ ...req.user });
     };
 
