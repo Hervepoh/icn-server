@@ -57,8 +57,10 @@ model User {
   name                  String
   email                 String        @unique
   password              String
+  ldap                  Boolean       @default(false)
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
+
   transactions          Transaction[] @relation("TransactionInitiator")
   roles                 UserRole[]
   Audit                 Audit[]
