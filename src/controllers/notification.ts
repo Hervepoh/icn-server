@@ -10,7 +10,7 @@ import HttpException, { ErrorCode } from "../exceptions/http-exception";
 import { idSchema, notificationSchema } from "../schema/notifications";
 import BadRequestException from "../exceptions/bad-requests";
 import { MAIL_NO_REPLY } from "../secrets";
-import { logErrorToFile } from "../libs/utils/log";
+import { writeLogEntry } from "../libs/utils/log";
 
 //---------------------------------------------------------
 //              get all notifications -- only for admin
@@ -125,7 +125,7 @@ cron.schedule('* * * * *', async () => {
             data,
           });
         } catch (error: any) {
-          logErrorToFile(error);
+          writeLogEntry(error);
           //throw new HttpException(error.message, 500, ErrorCode.INTERNAL_EXCEPTION, null);
         }
              
@@ -156,7 +156,7 @@ cron.schedule('* * * * *', async () => {
         },
       });
     } catch (error: any) {
-      logErrorToFile(error);
+      writeLogEntry(error);
       console.error(`Error sending notification to ${notification.email || notification.phone}:`, error);
     }
     console.log('----------------------------');

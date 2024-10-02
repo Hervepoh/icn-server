@@ -22,6 +22,7 @@ import { signUpSchema } from "../schema/users";
 import { SourceType } from "@prisma/client";
 import UnprocessableException from "../exceptions/validation";
 import { ldapLogin } from "../libs/authentificationService";
+import { writeLogEntry } from "../libs/utils/log";
 
 //-----------------------------------------------------------------------------
 //              Register User  /register  /signup
@@ -280,21 +281,22 @@ export const signin =
         
         // Extract userId from email
         const userId = email.split('@')[0]; // Get the part before '@'
-      
-        // LDAP authentication
-        let ldapUser;
-        try {
-            ldapUser = await ldapLogin(userId, password);
-          
-            console.log("ldap connection ok",ldapUser);
-        } catch (error) {
-            return next(error); // Handle LDAP errors
-        }
-        const isPasswordMatched = await userEntity.comparePassword(password);
-        if (!isPasswordMatched) {
-            return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
-        }
+         
 
+        writeLogEntry('login')
+        // LDAP authentication
+        // if (user.ldap) {
+        //     isLdapAuthentificated = await ldapLogin(userId, password);
+        //     if (!isLdapAuthentificated) {
+        //         return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
+        //     }
+        // }else {
+        //     const isPasswordMatched = await userEntity.comparePassword(password);
+        //     if (!isPasswordMatched) {
+        //         return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
+        //     }
+        // }
+        
         // When every thing is ok send Token to user
         const accessToken = userEntity.signAccessToken();
         const refreshToken = userEntity.signRefreshToken();
