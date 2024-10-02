@@ -2,14 +2,14 @@ import fs from 'fs';
 import path from 'path';
 
 // Énumération pour les niveaux de log
-enum LogLevel {
+export enum LogLevel {
   INFO = 'INFO',
   WARNING = 'WARNING',
   ERROR = 'ERROR',
 }
 
 // Énumération pour les types d'erreur
-enum ErrorType {
+export enum LogType {
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   DATABASE_ERROR = 'DATABASE_ERROR',
   NETWORK_ERROR = 'NETWORK_ERROR',
@@ -22,8 +22,8 @@ enum ErrorType {
 // Fonction pour écrire dans le fichier de log
 export function writeLogEntry  (
   message: string, 
-  level: LogLevel = LogLevel.INFO, 
-  type: ErrorType = ErrorType.GENERAL_ERROR, 
+  level: LogLevel = LogLevel.ERROR, 
+  type: LogType = LogType.GENERAL_ERROR, 
   errors?: string | object | Array<string | object> ) {
   const logDir = path.join(__dirname, '../../../logs'); // Répertoire des logs
   const today = new Date().toISOString().split('T')[0]; // Obtenir la date au format YYYY-MM-DD
