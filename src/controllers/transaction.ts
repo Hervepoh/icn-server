@@ -199,6 +199,7 @@ export const get =
       bank: item?.bank?.name,
       payment_mode: item?.paymentMode?.name,
       payment_date: item?.paymentDate,
+      assignTo: item?.user?.name,
       validatedBy: item?.validator?.name,
       modifiedBy: item?.modifier?.name,
       createdBy: item?.creator?.name,

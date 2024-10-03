@@ -12,6 +12,7 @@ import transactionDetailRoutes from "./transaction-detail";
 import summaryRoutes from "./summary";
 import notificationRoutes from "./notification";
 import statusRoutes from "./status";
+import unpaidOrPaidRoutes from "./unpaidOrPaid";
 
 const rootRouter:Router = Router();
 
@@ -27,6 +28,7 @@ rootRouter.use('/pay-modes' , paymentModeRoutes);
 rootRouter.use('/requests' , transactionRoutes);
 rootRouter.use('/requests-details' , transactionDetailRoutes);
 rootRouter.use('/search-unpaid' , unpaidRoutes);
+rootRouter.use('/search-paid-or-unpaid' , unpaidOrPaidRoutes);
 rootRouter.use('/icn' , interncreditRoutes);
 rootRouter.use('/notifications' , notificationRoutes);
 

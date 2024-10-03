@@ -1,3 +1,5 @@
+import { eachDayOfInterval, format, isSameDay, subDays } from "date-fns";
+
 export function isEmpty(variable: any): boolean {
     if (variable === null || variable === undefined || variable === '') {
       return true;
@@ -28,3 +30,39 @@ export const parseDMY = (s:string) : Date => {
   let [d, m, y] = s.split(/\D/);
   return new Date(parseInt(y), parseInt(m)-1, parseInt(d));
 };
+
+
+type Period = {
+  to: string | Date | undefined;
+  from: string | Date | undefined;
+}
+
+export function formatDateRange(period: Period) {
+  const DATEFORMAT = "LLL dd";
+  const DATEFORMATYEAR = "LLL dd, y";
+  const defaultTo = new Date();
+  const defaultFrom = subDays(defaultTo, 30);
+
+  if (!period?.from) {
+    if (isSameYear(defaultFrom, defaultTo)){
+      return `${format(defaultFrom, DATEFORMAT)} - ${format(defaultTo, DATEFORMATYEAR)}`
+    }
+     
+    return `${format(defaultFrom, DATEFORMATYEAR)} - ${format(defaultTo, DATEFORMATYEAR)}`  
+  }
+
+  if (period.to) {
+    if (isSameYear(new Date(period.from), new Date(period.to))){
+      return `${format(period.from, DATEFORMAT)} - ${format(period.to, DATEFORMATYEAR)}`
+    }
+    return `${format(period.from, DATEFORMATYEAR)} - ${format(period.to, DATEFORMATYEAR)}`
+  }
+
+  return format(period.from, DATEFORMATYEAR);
+
+}
+
+
+export function isSameYear(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear();
+}

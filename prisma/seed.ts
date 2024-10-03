@@ -30,7 +30,7 @@ const status = [
 // Liste des rôles
 const roles = ['ADMIN', 'USER', 'VALIDATOR', 'ASSIGNATOR', 'COMMERCIAL', 'MANAGER'];
 
-// Liste des permissions
+// Debut Liste des permissions
 const services = Object.values(serviceType);
 const permissions = [
   'CREATE', 'READ', 'WRITE', 'UPDATE', 'DELETE', 'BULKCREATE', 'BULKDELETE', 'SEARCH'
@@ -38,14 +38,17 @@ const permissions = [
 const customPermissions = [
   "ICN-NEXTCODE", 'ICN-NEXTDEMATERIALIZATION', "ICN-GROUPES", "ICN-DOCUMENTS",
   "USER-READNOTIFICATION", "USER-ROLE", "USER-ADDROLE", "USER-REMOVEROLE", "USER-NOTIFICATION",
-   "TRANSACTION-PUBLISH","TRANSACTION-VALIDATE","TRANSACTION-ASSIGN"
+  "TRANSACTION-PUBLISH","TRANSACTION-VALIDATE","TRANSACTION-ASSIGN","TRANSACTION-COMMERCIAL",
+  "SUMMARY-README"
 ];
+// Fin Liste des permissions
 
-// Permissions spécifique a attribuer par pofil
+
+// Debut Listing Permissions spécifiques a attribuer par pofil
 const specificPermissionForCOMMERCIAL = [
-  "TRANSACTION-READ",
+  "TRANSACTION-READ","TRANSACTION-COMMERCIAL",
   "TRANSACTIONDETAIL-READ", "TRANSACTIONDETAIL-WRITE", "TRANSACTIONDETAIL-BULKCREATE", "TRANSACTIONDETAIL-BULKDELETE",
-  "SUMMARY-READ",
+  "SUMMARY-README",
   "BANK-READ",
   "PAYMENTMODE-READ",
   "UNPAID-SEARCH",
@@ -57,7 +60,7 @@ const specificPermissionForAssignator = ["SUMMARY-READ","TRANSACTION-READ", "TRA
 const specificPermissionForValidation = ["SUMMARY-READ","TRANSACTION-READ", "TRANSACTION-VALIDATE"];
 const specificPermissionForUSER = [
   "TRANSACTION-READ", "TRANSACTION-WRITE", "TRANSACTION-PUBLISH", "TRANSACTION-BULKCREATE",
-  "SUMMARY-READ",
+  "SUMMARY-README",
   "BANK-READ",
   "PAYMENTMODE-READ",
   "UNPAID-SEARCH",
@@ -65,7 +68,7 @@ const specificPermissionForUSER = [
   "ROLE-READ",
   "USER-READNOTIFICATION"
 ];
-
+// Fin Listing Permissions spécifiques a attribuer par pofil
 
 const servicePermissions = services.flatMap(service =>
   permissions.map(permission => `${service}-${permission}`)

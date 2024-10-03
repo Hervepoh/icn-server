@@ -25,6 +25,7 @@ interface IUser {
     name: string;
     email: string;
     password: string;
+    ldap? : boolean;
     avatar?: string;
     roleId?: any
 }
@@ -34,7 +35,7 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
     // Validate input
     signUpSchema.parse(req.body);
 
-    const { name, email, password, roleId } = req.body as IUser;
+    const { name, email, password, roleId ,ldap } = req.body as IUser;
 
     if (!isAnAcceptablePassword(password)) {
         throw new BadRequestException(`Invalid Password : ${acceptablePasswordPolicy}`, ErrorCode.INVALID_DATA);
@@ -46,6 +47,7 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
             name,
             email,
             password: await bcrypt.hash(password, parseInt(SALT_ROUNDS || '10')),
+            ldap
         }
     });
     let role;
@@ -68,12 +70,16 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
             roleId: role.id,
         }
     });
+     
+    const message = ldap 
+    ? `**Email**: ${user.email} \n\n Please use your Outlook password to log in.`
+    : `**Email**: ${user.email} \n\n  **Temporary Password**: ${password}.`;
 
     // User notification by mail
     await prismaClient.notification.create({
         data: {
             email: user.email,
-            message: `**Email** : ${user.email} " <br/> **Temporary Password**: ${password}`,
+            message: message ,
             method: NotificationMethod.EMAIL,
             subject: "Your account has been created successfully.",
             template: "new.mail.ejs",
@@ -113,6 +119,31 @@ export const get =
             });
         }
     };
+
+//-----------------------------------------------
+//       Get All Users : get users
+//-----------------------------------------------
+
+// Handling the process GET users information 
+export const getPublic =
+async (req: Request, res: Response, next: NextFunction) => {
+    const public_key = key+'_public'
+    const usersJSON = await redis.get(public_key);
+    if (usersJSON) {
+        const data = JSON.parse(usersJSON);
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    } else {
+        const data = await revalidePublicistService(public_key);
+
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    }
+};
 
 //-----------------------------------------------
 //       Get All Users : get users
@@ -337,5 +368,20 @@ const revalideCommercialListService = async (key: string) => {
         },
     });
     await redis.set(key+'_role_commercial', JSON.stringify(data));
+    return data
+}
+
+const revalidePublicistService = async (key: string) => {
+    const data = await prismaClient.user.findMany({
+        select: {
+            id: true,
+            name: true,
+            email: true,
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    await redis.set(key, JSON.stringify(data));
     return data
 }

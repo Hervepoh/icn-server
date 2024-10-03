@@ -27,7 +27,7 @@ export const ldapLogin = async (userId: string, password: string) => {
         await client.bind(`${userId}@camlight.cm`, password);
         return true;
     } catch (error) {
-        writeLogEntry('${userId}@camlight.cm', LogLevel.INFO, LogType.AUTHENTICATION);
+        writeLogEntry(`${userId}@camlight.cm`, LogLevel.INFO, LogType.AUTHENTICATION);
         throw new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA);
     }finally {
         // Assurez-vous de vous défaire de la liaison

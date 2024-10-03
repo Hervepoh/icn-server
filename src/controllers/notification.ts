@@ -9,7 +9,7 @@ import NotFoundException from "../exceptions/not-found";
 import HttpException, { ErrorCode } from "../exceptions/http-exception";
 import { idSchema, notificationSchema } from "../schema/notifications";
 import BadRequestException from "../exceptions/bad-requests";
-import { MAIL_NO_REPLY } from "../secrets";
+import { MAIL_DOMAIN, MAIL_NO_REPLY } from "../secrets";
 import { writeLogEntry } from "../libs/utils/log";
 
 //---------------------------------------------------------
@@ -108,7 +108,8 @@ cron.schedule('* * * * *', async () => {
           user: { name: notification.email },
           from: `ICN CASHING`,
           text: notification.message,
-          supportmail: MAIL_NO_REPLY
+          supportmail: MAIL_NO_REPLY,
+          domain : MAIL_DOMAIN
         };
         const template = notification.template || "notification.mail.ejs"
 

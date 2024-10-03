@@ -106,21 +106,29 @@ export const getUnpaidBillsByContractNumber =
       throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
     }
 
-    // Fetch data from the database
-    const result = await executeQuery(
-      sqlQuery.unpaid_bills_by_contract_number,
-      [
-        contract_number,
-        format(FromDate.toString(), "dd/MM/yyyy"),
-        format(ToDate.toString(), "dd/MM/yyyy")
-      ]
-    );
+    try {
+      // Fetch data from the database
+      const result = await executeQuery(
+        sqlQuery.unpaid_bills_by_contract_number,
+        [
+          contract_number,
+          format(FromDate.toString(), "dd/MM/yyyy"),
+          format(ToDate.toString(), "dd/MM/yyyy")
+        ]
+      );    // send the response
+      return res.status(200).json({
+        success: true,
+        bills: result.rows
+      });
 
-    // send the response
-    return res.status(200).json({
-      success: true,
-      bills: result.rows
-    });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "An error in getUnpaidBillsByContractNumber"
+      });
+    }
+
 
 
   };
@@ -152,7 +160,7 @@ export const getUnpaidBillsByCustomerRegroupNumber =
           value, FromDate.toString(), ToDate.toString()
         ]
       );
-  
+
       return res.status(200).json({
         success: true,
         bills: result.rows

@@ -4,6 +4,7 @@ dotenv.config({ path: '.env' })
 export const PORT = process.env.NODE_PORT;
 export const NODE_ORIGIN = process.env.NODE_ORIGIN!;
 
+
 export const SALT_ROUNDS = process.env.SALT_ROUNDS;
 
 export const ACTIVATION_TOKEN_SECRET = process.env.ACTIVATION_TOKEN_SECRET || "";
@@ -34,4 +35,6 @@ export const SMTP_CIPHERS = process.env.SMTP_CIPHERS;
 export const SMTP_MAIL = process.env.SMTP_MAIL;
 export const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 
+export const MAIL_DOMAIN = process.env.MAIL_DOMAIN;
 export const MAIL_NO_REPLY = process.env.MAIL_NO_REPLY;
+

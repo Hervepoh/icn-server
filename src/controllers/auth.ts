@@ -226,7 +226,7 @@ interface ILoginRequest {
 export const signin =
     async (req: Request, res: Response, next: NextFunction) => {
         const { email, password, roleId }: ILoginRequest = req.body;
-     
+
         // Validation of user inputs
         if (!email || !password) {
             throw new BadRequestException("Please enter both Email and Password", ErrorCode.UNFULLFIELD_REQUIRED_FIELD);
@@ -276,25 +276,25 @@ export const signin =
                 },
             },
         });
-   
+
         const userEntity = new UserEntity({ ...user, role });
-        
+
         // Extract userId from email
         const userId = email.split('@')[0]; // Get the part before '@'
-         
+
         // LDAP authentication
         if (user.ldap) {
             const isLdapAuthentificated = await ldapLogin(userId, password);
             if (!isLdapAuthentificated) {
                 return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
             }
-        }else {
+        } else {
             const isPasswordMatched = await userEntity.comparePassword(password);
             if (!isPasswordMatched) {
                 return next(new BadRequestException("Invalid Email or Password", ErrorCode.INVALID_DATA));
             }
         }
-        
+
         // When every thing is ok send Token to user
         const accessToken = userEntity.signAccessToken();
         const refreshToken = userEntity.signRefreshToken();

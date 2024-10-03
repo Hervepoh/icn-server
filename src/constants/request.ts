@@ -1,5 +1,21 @@
 export const sqlQuery = {
 
+/*------------------------------------------------
+	 *       CMS BILLS QUERY
+	------------------------------------------------ */
+	bills_by_invoice_number:
+	`select /*+ parallel(6) */
+	s.regroup_id code_regroupement,
+	decode(r.nis_rad, 0, r.cod_cta_pago, r.nis_rad) numero_contrat,
+	r.num_rec numero_facture,
+	s.cust_name nom_client,
+	to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
+	ceil(imp_tot_rec-imp_cta) montant_impaye
+from cmsadmin.recibos r
+	left join cmsreport.tb_customers_infos s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
+where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber)`,
+
+
 	/*------------------------------------------------
 	 *       CMS UNPAID QUERY
 	------------------------------------------------ */
@@ -13,7 +29,8 @@ export const sqlQuery = {
         regexp_replace(c.ape2_cli,'[\+\*\$!%,?\.;^¨§]*'), '^[[:blank:][:space:]''\+\*\$!%,?\.;^¨§-]*|[[:blank:][:space:]''\+\*\$!%,?\./;^¨§-]*$')
         from cmsadmin.clientes c join cmsadmin.sumcon s on c.cod_cli = s.cod_cli where s.nis_rad = r.nis_rad) nom_client,
         to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
-        ceil(imp_tot_rec-imp_cta) montant_impaye
+        ceil(imp_tot_rec-imp_cta) montant_impaye,
+		ceil(imp_tot_rec-imp_cta) montant_apaye
     from cmsadmin.recibos r left join cmsadmin.xclientes x on r.nis_rad = x.nis_rad
         join cmsadmin.sumcon s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
     where r.nis_rad = :ContractNber
@@ -32,7 +49,8 @@ export const sqlQuery = {
         r.num_rec numero_facture,
         s.cust_name nom_client,
         to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
-        ceil(imp_tot_rec-imp_cta) montant_impaye
+        ceil(imp_tot_rec-imp_cta) montant_impaye,
+		ceil(imp_tot_rec-imp_cta) montant_apaye
     from cmsadmin.recibos r
         left join cmsreport.tb_customers_infos s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
     where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber
@@ -54,7 +72,8 @@ export const sqlQuery = {
 			regexp_replace(c.ape2_cli,'[\+\*\$!%,?\.;^¨§]*'), '^[[:blank:][:space:]''\+\*\$!%,?\.;^¨§-]*|[[:blank:][:space:]''\+\*\$!%,?\./;^¨§-]*$')
 			from cmsadmin.clientes c join cmsadmin.sumcon s on c.cod_cli = s.cod_cli where s.nis_rad = r.nis_rad) nom_client,
 			to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
-			ceil(imp_tot_rec-imp_cta) montant_impaye
+			ceil(imp_tot_rec-imp_cta) montant_impaye,
+			ceil(imp_tot_rec-imp_cta) montant_apaye
 		from cmsadmin.recibos r join regroupCusts x on r.nis_rad = x.nis_rad
 			join cmsadmin.sumcon s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
 		where imp_tot_rec - imp_cta > 0
@@ -75,7 +94,8 @@ export const sqlQuery = {
 				regexp_replace(c.ape2_cli,'[\+\*\$!%,?\.;^¨§]*'), '^[[:blank:][:space:]''\+\*\$!%,?\.;^¨§-]*|[[:blank:][:space:]''\+\*\$!%,?\./;^¨§-]*$')
 				from cmsadmin.clientes c join cmsadmin.sumcon s on c.cod_cli = s.cod_cli where s.nis_rad = r.nis_rad) nom_client,
 			to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
-			ceil(imp_tot_rec-imp_cta) montant_impaye
+			ceil(imp_tot_rec-imp_cta) montant_impaye,
+			ceil(imp_tot_rec-imp_cta) montant_apaye
 		from cmsadmin.recibos r join tb_sdgc_groupes x on r.nis_rad = x.service_no
 			join cmsadmin.sumcon s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
 		where imp_tot_rec - imp_cta > 0
