@@ -77,8 +77,6 @@ type FilterType = 'createdBy' | 'assignTo';
 async function fetchSummaryData(from: Date, to: Date, type?: FilterType, userIdOrCreatedBy?: string) {
   const fromDate = format(from, "yyyy-MM-dd");
   const toDate = format(to, "yyyy-MM-dd");
-  console.log("fromDate", fromDate)
-  console.log("toDate", toDate)
 
   const filter =
     `${type === 'createdBy' && userIdOrCreatedBy ? `createdBy='${userIdOrCreatedBy}' AND ` : ''}${type === 'assignTo' && userIdOrCreatedBy ? `userId='${userIdOrCreatedBy}' AND ` : ''}`;
@@ -97,7 +95,6 @@ async function fetchSummaryData(from: Date, to: Date, type?: FilterType, userIdO
     GROUP BY DATE(paymentDate) 
     ORDER BY date ASC
   `
-  console.log(activeDaysQuery)
   const activeDays: any = await prismaClient.$queryRawUnsafe(activeDaysQuery);
 
   const days = fillMissingDays(activeDays, from, to);
@@ -119,7 +116,7 @@ async function fetchSummaryData(from: Date, to: Date, type?: FilterType, userIdO
     GROUP BY 
         t.statusId;
   `
-  console.log(transactionsQuery)
+
   const transactions: any = await prismaClient.$queryRawUnsafe(transactionsQuery);
 
   return {

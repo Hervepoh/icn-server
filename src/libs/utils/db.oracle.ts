@@ -1,5 +1,6 @@
 import { dbConfig } from "../../config/db.config";
 import HttpException, { ErrorCode } from "../../exceptions/http-exception";
+import { LogLevel, LogType, writeLogEntry } from "./log";
 
 var oracledb = require('oracledb');
 
@@ -9,7 +10,7 @@ async function getConnection() {
     const connection = await oracledb.getConnection(dbConfig);
     return connection;
   } catch (err) {
-    console.error('Erreur lors de la connexion à la base de données:', err);
+    writeLogEntry('Database connection error', LogLevel.ERROR, LogType.DATABASE, [err]);
     throw err;
   }
 }
@@ -19,7 +20,7 @@ async function releaseConnection(connection: any) {
   try {
     await connection.close();
   } catch (err) {
-    console.error('Erreur lors de la fermeture de la connexion:', err);
+    writeLogEntry('Closing database connection error:', LogLevel.ERROR, LogType.DATABASE, [err]);
     throw err;
   }
 }
@@ -35,7 +36,7 @@ const executeQuery = async (query: string, values: any[] = []) => {
 
     } catch (error: any) {
       // Catch the error and return and error response
-      console.error('Internal error:', error);
+      writeLogEntry('Internal error:', LogLevel.ERROR, LogType.DATABASE, error);
       return new HttpException(error.message, 500, ErrorCode.INTERNAL_EXCEPTION, error);
     } finally {
       // close the connection to the database

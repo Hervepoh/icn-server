@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseDMY = exports.getCurrentMonthYear = exports.formatDate = void 0;
 exports.isEmpty = isEmpty;
+exports.formatDateRange = formatDateRange;
+exports.isSameYear = isSameYear;
+const date_fns_1 = require("date-fns");
 function isEmpty(variable) {
     if (variable === null || variable === undefined || variable === '') {
         return true;
@@ -30,3 +33,25 @@ const parseDMY = (s) => {
     return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
 };
 exports.parseDMY = parseDMY;
+function formatDateRange(period) {
+    const DATEFORMAT = "LLL dd";
+    const DATEFORMATYEAR = "LLL dd, y";
+    const defaultTo = new Date();
+    const defaultFrom = (0, date_fns_1.subDays)(defaultTo, 30);
+    if (!(period === null || period === void 0 ? void 0 : period.from)) {
+        if (isSameYear(defaultFrom, defaultTo)) {
+            return `${(0, date_fns_1.format)(defaultFrom, DATEFORMAT)} - ${(0, date_fns_1.format)(defaultTo, DATEFORMATYEAR)}`;
+        }
+        return `${(0, date_fns_1.format)(defaultFrom, DATEFORMATYEAR)} - ${(0, date_fns_1.format)(defaultTo, DATEFORMATYEAR)}`;
+    }
+    if (period.to) {
+        if (isSameYear(new Date(period.from), new Date(period.to))) {
+            return `${(0, date_fns_1.format)(period.from, DATEFORMAT)} - ${(0, date_fns_1.format)(period.to, DATEFORMATYEAR)}`;
+        }
+        return `${(0, date_fns_1.format)(period.from, DATEFORMATYEAR)} - ${(0, date_fns_1.format)(period.to, DATEFORMATYEAR)}`;
+    }
+    return (0, date_fns_1.format)(period.from, DATEFORMATYEAR);
+}
+function isSameYear(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear();
+}

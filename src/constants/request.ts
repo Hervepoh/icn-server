@@ -1,19 +1,19 @@
 export const sqlQuery = {
 
-/*------------------------------------------------
+	/*------------------------------------------------
 	 *       CMS BILLS QUERY
 	------------------------------------------------ */
 	bills_by_invoice_number:
-	`select /*+ parallel(6) */
-	s.regroup_id code_regroupement,
-	decode(r.nis_rad, 0, r.cod_cta_pago, r.nis_rad) numero_contrat,
-	r.num_rec numero_facture,
-	s.cust_name nom_client,
-	to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
-	ceil(imp_tot_rec-imp_cta) montant_impaye
-from cmsadmin.recibos r
-	left join cmsreport.tb_customers_infos s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
-where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber)`,
+		`select /*+ parallel(6) */
+			s.regroup_id code_regroupement,
+			decode(r.nis_rad, 0, r.cod_cta_pago, r.nis_rad) numero_contrat,
+			r.num_rec numero_facture,
+			s.cust_name nom_client,
+			to_char(r.f_prev_puesta,'dd/mm/yyyy') date_facturation,
+			ceil(imp_tot_rec-imp_cta) montant_impaye
+		from cmsadmin.recibos r
+			left join cmsreport.tb_customers_infos s on r.nis_rad = s.nis_rad and regexp_like(s.est_serv,'EC0(1[1-4]|2[08])')
+		where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber)`,
 
 
 	/*------------------------------------------------
@@ -245,8 +245,8 @@ where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber)`,
 	icn_fulldata:
 		``,
 
-	icn_lightdata: 
-        ``,
+	icn_lightdata:
+		``,
 
 	icn_infos:
 		`select /*+ parallel(6) */ distinct
@@ -275,8 +275,25 @@ where /*r.num_rec in (424378539) or*/ (r.num_rec = :BillNber)`,
 			count(distinct id_cobtemp) over() Number_Of_Bills,
 			sum(paid_amount) over() Total_Amount_Paid
 		from cmsreport.tb_offline_collections c
-        where aci_number = to_char(:ACI_NUMBER)`
+        where aci_number = to_char(:ACI_NUMBER)`,
 
+	icn_search_bill_status:
+		`select  
+			cob_fuente_id facture , 
+			est_cobtemp status , 
+			imp_cob_bco montant , 
+			f_cobro_orig date_paiement , 
+			f_proc_cobro date_integration, 
+			num_gest_cobro num_session
+        from cobtemp WHERE cod_caja=5701473
+		where cob_fuente_id = :BillNber`,
+
+	new_invoice_document_capture:
+		`SELECT td.*,t.reference
+		FROM transaction_details td
+		JOIN transactions t ON td.transactionId = t.id
+		WHERE t.statusId = 8
+		  AND td.id NOT IN (SELECT transactionDetailsId FROM integration_documents)`
 
 }
 

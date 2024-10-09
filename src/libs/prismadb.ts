@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as { prismaClient: PrismaClient }
 
 const prismaClient = globalForPrisma.prismaClient || new PrismaClient({
     log: [
-        // { level: 'query', emit: 'event' },
+        { level: 'query', emit: 'event' },
         { level: 'info', emit: 'stdout' },
         { level: 'warn', emit: 'stdout' },
         { level: 'error', emit: 'stdout' },

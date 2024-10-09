@@ -1,4 +1,5 @@
 import { dbConfig } from "../../config/db.config";
+import { LogLevel, LogType, writeLogEntry } from "./log";
 
 
 var oracledb = require('oracledb');
@@ -7,31 +8,30 @@ async function getConnection() {
   try {
     await oracledb.createPool(dbConfig, (err: any) => {
       if (err) {
-        console.error('Erreur de création du pool de connexions Oracle :', err);
+        writeLogEntry(`Oracle connection pool creation error`, LogLevel.ERROR, LogType.DATABASE, [ "error", err]);
         return;
       }
-      console.log('Pool de connexions Oracle créé avec succès.');
+      writeLogEntry(`Oracle connection pool successfully created.`, LogLevel.INFO, LogType.DATABASE, [ "error", err]);
     });
     return await oracledb.getConnection();
   } catch (err) {
-    console.error('Erreur lors de l\'obtention d\'une connexion :', err);
+    writeLogEntry(`Error obtaining an Oracle connection`, LogLevel.ERROR, LogType.DATABASE, [ "error", err]);
     throw err;
   }
 }
 
 
-async function executeQuery(connection: any, query: string , values: any[]) {
+async function executeQuery(connection: any, query: string, values: any[]) {
   try {
     const result = await connection.execute(query);
-    console.log('Résultat de la requête :', result);
   } catch (err) {
-    console.error('Erreur lors de l\'exécution de la requête :', err);
+    writeLogEntry(`Error during query execution`, LogLevel.ERROR, LogType.DATABASE, ["query", query, "error", err]);
     throw err;
   } finally {
     try {
       await connection.close();
-    } catch (err) {
-      console.error('Erreur lors de la fermeture de la connexion :', err);
+    } catch (error) {
+    writeLogEntry(`Database closing connection error`, LogLevel.ERROR, LogType.DATABASE, ["query", query, "error", error]);
     }
   }
 }
@@ -41,20 +41,20 @@ async function releaseConnection() {
   try {
     await oracledb.getPool().close(0);
   } catch (err) {
-    console.error('Erreur lors de la fermeture du pool de connexions :', err);
+    writeLogEntry(`Error closing connection pool`, LogLevel.ERROR, LogType.DATABASE, ["error", err]);
     throw err;
   }
 }
 
-async function run(query: string,values: any[]) {
+async function run(query: string, values: any[]) {
   let connection
   try {
     const connection = await getConnection();
     let query = ''
     let values: any[] = [];
-    await executeQuery(connection, query , values);
+    await executeQuery(connection, query, values);
   } catch (err) {
-    console.error('Erreur dans la fonction run :', err);
+    writeLogEntry(`Error in run function :`, LogLevel.ERROR, LogType.DATABASE, ["error", err,"query",query,"values",values]);
   } finally {
     if (connection) {
       await releaseConnection();

@@ -53,13 +53,13 @@ model Reference {
 }
 
 model User {
-  id                    String        @id @default(uuid()) @db.Char(36) // Use CHAR(36) for UUID
-  name                  String
-  email                 String        @unique
-  password              String
-  ldap                  Boolean       @default(false)
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Char(36) // Use CHAR(36) for UUID
+  name      String
+  email     String   @unique
+  password  String
+  ldap      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   transactions          Transaction[] @relation("TransactionInitiator")
   roles                 UserRole[]
@@ -167,14 +167,20 @@ model TransactionDetail {
 }
 
 enum EventIntegrationType {
-  PENDING
+  WAIT_GENERATION
   GENERATED
+  PENDING
+  ONGOING
   INTEGRATED
   CANCELED
 }
 
 model IntegrationDocument {
-  transaction_id            String               @id @default(uuid()) @db.Char(36)
+  id                        Int                  @id @default(autoincrement())
+  reference                 String
+  transactionId             String
+  transactionDetailsId      String
+  transaction_id            String
   sub_transaction_type      String
   bill_partner_company_name String
   bill_partner_company_code String
@@ -186,7 +192,7 @@ model IntegrationDocument {
   paid_by_msisdn            String
   transaction_status        String
   om_bill_payment_status    String
-  integration_status        EventIntegrationType @default(PENDING)
+  integration_status        EventIntegrationType
   createdAt                 DateTime             @default(now()) @map("created_at")
   updatedAt                 DateTime             @updatedAt @map("updated_at")
 
@@ -234,7 +240,7 @@ model Notification {
   phone     String? // Numéro de téléphone pour WhatsApp & sms, peut être nul si vous n'envoyez que par e-mail
   method    NotificationMethod
   subject   String
-  message   String
+  message   String             @db.VarChar(5000)
   template  String?
   status    String             @default("unread")
   sent      Boolean            @default(false) // Indique si la notification a été envoyée
@@ -243,4 +249,13 @@ model Notification {
   updatedAt DateTime           @updatedAt @map("updated_at")
 
   @@map("notifications")
+}
+
+model JobLock {
+  job_name   String   @id
+  is_running Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("job_locks")
 }

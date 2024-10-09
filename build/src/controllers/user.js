@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeUserRole = exports.addUserRole = exports.getUserNotification = exports.remove = exports.update = exports.getById = exports.getCommercialUsers = exports.get = exports.create = void 0;
+exports.removeUserRole = exports.addUserRole = exports.getUserNotification = exports.remove = exports.update = exports.getById = exports.getCommercialUsers = exports.getPublic = exports.get = exports.create = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const redis_1 = require("../libs/utils/redis");
 const prismadb_1 = __importDefault(require("../libs/prismadb"));
@@ -28,7 +28,7 @@ const key = 'users';
 const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     // Validate input
     users_1.signUpSchema.parse(req.body);
-    const { name, email, password, roleId } = req.body;
+    const { name, email, password, roleId, ldap } = req.body;
     if (!(0, validator_1.isAnAcceptablePassword)(password)) {
         throw new bad_requests_1.default(`Invalid Password : ${validator_1.acceptablePasswordPolicy}`, http_exception_1.ErrorCode.INVALID_DATA);
     }
@@ -38,6 +38,7 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             name,
             email,
             password: yield bcrypt_1.default.hash(password, parseInt(secrets_1.SALT_ROUNDS || '10')),
+            ldap
         }
     });
     let role;
@@ -61,11 +62,14 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             roleId: role.id,
         }
     });
+    const message = ldap
+        ? `**Email**: ${user.email} \n\n Please use your Outlook password to log in.`
+        : `**Email**: ${user.email} \n\n  **Temporary Password**: ${password}.`;
     // User notification by mail
     yield prismadb_1.default.notification.create({
         data: {
             email: user.email,
-            message: `**Email** : ${user.email} " <br/> **Temporary Password**: ${password}`,
+            message: message,
             method: client_1.NotificationMethod.EMAIL,
             subject: "Your account has been created successfully.",
             template: "new.mail.ejs",
@@ -101,6 +105,29 @@ const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.get = get;
+//-----------------------------------------------
+//       Get All Users : get users
+//-----------------------------------------------
+// Handling the process GET users information 
+const getPublic = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const public_key = key + '_public';
+    const usersJSON = yield redis_1.redis.get(public_key);
+    if (usersJSON) {
+        const data = JSON.parse(usersJSON);
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    }
+    else {
+        const data = yield revalidePublicistService(public_key);
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    }
+});
+exports.getPublic = getPublic;
 //-----------------------------------------------
 //       Get All Users : get users
 //-----------------------------------------------
@@ -278,5 +305,19 @@ const revalideCommercialListService = (key) => __awaiter(void 0, void 0, void 0,
         },
     });
     yield redis_1.redis.set(key + '_role_commercial', JSON.stringify(data));
+    return data;
+});
+const revalidePublicistService = (key) => __awaiter(void 0, void 0, void 0, function* () {
+    const data = yield prismadb_1.default.user.findMany({
+        select: {
+            id: true,
+            name: true,
+            email: true,
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    yield redis_1.redis.set(key, JSON.stringify(data));
     return data;
 });

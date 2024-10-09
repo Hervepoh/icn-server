@@ -15,7 +15,7 @@ userRoutes.get('/public', [authMiddleware],errorHandler(getPublic));
 userRoutes.get('/', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)],errorHandler(get));
 userRoutes.get('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [authMiddleware,authorizeMiddleware(`${serviceName}-READ`)],errorHandler(getById));
 userRoutes.put('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-UPDATE`)],errorHandler(update));
-userRoutes.delete('/:id', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`)],errorHandler(remove));
+userRoutes.delete('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [authMiddleware,authorizeMiddleware(`${serviceName}-DELETE`)],errorHandler(remove));
 userRoutes.get('/notifications',[authMiddleware,authorizeMiddleware(`${serviceName}-READNOTIFICATION`,`${serviceName}-NOTIFICATION`)], errorHandler(getUserNotification));
 
 userRoutes.post('/role',[authMiddleware,authorizeMiddleware(`${serviceName}-ADDROLE`,`${serviceName}-ROLE`)], errorHandler(addUserRole));

@@ -12,14 +12,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.me = exports.all = void 0;
+exports.summary = void 0;
 const moment_1 = __importDefault(require("moment"));
 const date_fns_1 = require("date-fns");
 const prismadb_1 = __importDefault(require("../libs/prismadb"));
-const bad_requests_1 = __importDefault(require("../exceptions/bad-requests"));
-const http_exception_1 = require("../exceptions/http-exception");
-const all = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const { from: fromDate, to: toDate } = req.query;
+const formatter_1 = require("../libs/utils/formatter");
+const summary = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const { from: fromDate, to: toDate, type, user } = req.query;
     const defaultTo = new Date();
     const defaultFrom = (0, date_fns_1.subDays)(defaultTo, 30);
     const from = fromDate
@@ -33,12 +32,15 @@ const all = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     //Last period date for data comparaison with current date
     const lastPeriodFrom = (0, date_fns_1.subDays)(from, periodLenght);
     const lastPeriodTo = (0, date_fns_1.subDays)(to, periodLenght);
-    try {
+    let currentPeriod;
+    if (type && user && (type === 'createdBy' || type === 'assignTo')) {
+        // Logique lorsque type est 'createdBy' ou 'assignTo'
+        currentPeriod = yield fetchSummaryData(from, to, type, user.toString());
     }
-    catch (error) {
-        next(new bad_requests_1.default("Error in call", http_exception_1.ErrorCode.UNAUTHORIZE));
+    else {
+        // Gérer le cas où type n'est pas valide
+        currentPeriod = yield fetchSummaryData(from, to);
     }
-    const currentPeriod = yield fetchSummaryData(from, to);
     //const lastPeriod = await fetchSummaryData(from, to);
     // Convert BigInt to Number
     const formattedDaysData = currentPeriod.days.map(item => ({
@@ -64,113 +66,61 @@ const all = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         data: {
             days: formattedDaysData,
             transactions: { nber: formattedTransactionsData },
-            categories: { nber: formattedCategoriesData }
+            categories: { nber: formattedCategoriesData },
+            dateRangeLabel: (0, formatter_1.formatDateRange)({ from, to })
         }
     });
 });
-exports.all = all;
-function fetchSummaryData(from, to) {
+exports.summary = summary;
+function fetchSummaryData(from, to, type, userIdOrCreatedBy) {
     return __awaiter(this, void 0, void 0, function* () {
-        //console.log(format(new Date(from), "yyyy-MM-dd"));
-        const activeDays = yield prismadb_1.default.$queryRaw `
-    SELECT DATE(paymentDate) AS date , COUNT(*) AS count, SUM(amount) AS amount
+        const fromDate = (0, date_fns_1.format)(from, "yyyy-MM-dd");
+        const toDate = (0, date_fns_1.format)(to, "yyyy-MM-dd");
+        console.log("fromDate", fromDate);
+        console.log("toDate", toDate);
+        const filter = `${type === 'createdBy' && userIdOrCreatedBy ? `createdBy='${userIdOrCreatedBy}' AND ` : ''}${type === 'assignTo' && userIdOrCreatedBy ? `userId='${userIdOrCreatedBy}' AND ` : ''}`;
+        // Requête pour les jours actifs
+        const activeDaysQuery = `
+    SELECT 
+      DATE(paymentDate) AS date, 
+      COUNT(*) AS count, 
+      SUM(amount) AS amount
     FROM transactions
-    WHERE  
-    deleted=0 AND
-    paymentDate BETWEEN '2021-08-01' AND '2025-08-01'
-    GROUP BY DATE(paymentDate)
-    ORDER BY date ASC;
-`;
+    WHERE 
+      deleted = 0 AND 
+      statusId <> 2 AND ${filter}
+      paymentDate BETWEEN '${fromDate}' AND '${toDate}' 
+    GROUP BY DATE(paymentDate) 
+    ORDER BY date ASC
+  `;
+        console.log(activeDaysQuery);
+        const activeDays = yield prismadb_1.default.$queryRawUnsafe(activeDaysQuery);
         const days = fillMissingDays(activeDays, from, to);
-        const transactions = yield prismadb_1.default.$queryRaw `
-      SELECT 
-          s.name AS status, 
-          COUNT(*) AS number,
-          SUM(t.amount) AS amount
-      FROM 
-          transactions t
-      JOIN 
-          status s ON t.statusId = s.id
-      WHERE
-          t.paymentDate BETWEEN '2021-08-01' AND '2025-08-01'
-      GROUP BY 
-          t.statusId;
-`;
+        // Requête pour les transactions
+        const transactionsQuery = `
+    SELECT 
+      s.name AS status, 
+      COUNT(*) AS number,
+      SUM(t.amount) AS amount
+    FROM 
+      transactions t
+    JOIN 
+        status s ON t.statusId = s.id
+    WHERE
+        t.deleted = 0 AND
+        statusId <> 2 AND ${filter}
+        paymentDate BETWEEN '${fromDate}' AND '${toDate}'
+    GROUP BY 
+        t.statusId;
+  `;
+        console.log(transactionsQuery);
+        const transactions = yield prismadb_1.default.$queryRawUnsafe(transactionsQuery);
         return {
             days,
             transactions,
         };
     });
 }
-const me = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    //     // const from = new Date(req.body.from);
-    //     // const to = new Date(req.body.to);
-    //     const from = moment(req.body.from, 'DD/MM/YYYY').toDate();
-    //     const to = moment(req.body.to, 'DD/MM/YYYY').toDate();
-    //     const userId = req.user?.id;
-    //     // Récupération du nombre de requêtes par statut
-    //     const requestCountByStatus = await requestModel.aggregate([
-    //       { $match: { payment_date: { $gte: from, $lte: to }, userId } },
-    //       { $group: { id: '$status', count: { $count: {} } } }
-    //     ]);
-    //     console.log("Voici", res.cookie)
-    //     // Récupération du nombre total de requêtes
-    //     const totalRequestCount = await requestModel.countDocuments({ payment_date: { $gte: from, $lte: to }, userId });
-    //     // Récupération du montant des requêtes par statut
-    //     const amountByStatus = await requestModel.aggregate([
-    //       { $match: { createdAt: { $gte: from, $lte: to }, userId } },
-    //       { $group: { id: '$status', totalAmount: { $sum: '$amount' } } }
-    //     ]);
-    //     // Récupération des 10 principaux demandeurs de requêtes par statut
-    //     // Étape 1: Récupérer les demandes dans la plage de dates spécifiée
-    //     const requests = await prismaClient.tra.findMany({
-    //       where: {
-    //         createdAt: {
-    //           gte: from,  // Date de début
-    //           lte: to,    // Date de fin
-    //         },
-    //         userId: userId,  // Filtrer par userId
-    //       },
-    //       select: {
-    //         status: true,
-    //         userId: true,
-    //       },
-    //     });
-    //     // Étape 2: Compter les demandes par utilisateur et statut
-    //     const requesterCounts = requests.reduce((acc: { [x: string]: any; }, { status, userId }: any) => {
-    //       const key = `${status}_${userId}`;
-    //       acc[key] = (acc[key] || 0) + 1;
-    //       return acc;
-    //     }, {});
-    //     // Étape 3: Regrouper par statut
-    //     const groupedByStatus = Object.entries(requesterCounts).reduce((acc, [key, count]) => {
-    //       const [status, userId] = key;
-    //       if (!acc[status]) {
-    //         acc[status] = [];
-    //       }
-    //       acc[status].push({ userId, count });
-    //       return acc;
-    //     }, {});
-    //     // Étape 4: Obtenir les 10 meilleurs demandeurs par statut
-    //     const topRequestersByStatus = Object.keys(groupedByStatus).map(status => ({
-    //       status,
-    //       topRequesters: groupedByStatus[status]
-    //         .sort((a: { count: number; }, b: { count: number; }) => b.count - a.count) // Trier par compte
-    //         .slice(0, 10) // Prendre les 10 meilleurs
-    //     }));
-    //     // Afficher le résultat
-    //     console.log(topRequestersByStatus);
-    //     return res.status(200).json({
-    //       success: true,
-    //       data: {
-    //         requestCountByStatus,
-    //         totalRequestCount,
-    //         amountByStatus,
-    //         topRequestersByStatus
-    //       }
-    //     });
-});
-exports.me = me;
 function calculatePercentageChange(current, previous) {
     if (previous === 0) {
         return previous === current ? 0 : 100;

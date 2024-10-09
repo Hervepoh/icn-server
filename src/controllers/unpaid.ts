@@ -112,8 +112,8 @@ export const getUnpaidBillsByContractNumber =
         sqlQuery.unpaid_bills_by_contract_number,
         [
           contract_number,
-          format(FromDate.toString(), "dd/MM/yyyy"),
-          format(ToDate.toString(), "dd/MM/yyyy")
+          format(FromDate.toString() ?? new Date(), "dd/MM/yyyy"),
+          format(ToDate.toString()  ?? new Date(), "dd/MM/yyyy")
         ]
       );    // send the response
       return res.status(200).json({

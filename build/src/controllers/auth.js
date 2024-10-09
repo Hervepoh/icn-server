@@ -55,6 +55,7 @@ const enum_1 = require("../constants/enum");
 const user_1 = require("../entities/user");
 const users_1 = require("../schema/users");
 const client_1 = require("@prisma/client");
+const authentificationService_1 = require("../libs/authentificationService");
 // Handling the user registration(signup) process.
 const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     // Validate input
@@ -217,9 +218,20 @@ const signin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
         },
     });
     const userEntity = new user_1.UserEntity(Object.assign(Object.assign({}, user), { role }));
-    const isPasswordMatched = yield userEntity.comparePassword(password);
-    if (!isPasswordMatched) {
-        return next(new bad_requests_1.default("Invalid Email or Password", http_exception_1.ErrorCode.INVALID_DATA));
+    // Extract userId from email
+    const userId = email.split('@')[0]; // Get the part before '@'
+    // LDAP authentication
+    if (user.ldap) {
+        const isLdapAuthentificated = yield (0, authentificationService_1.ldapLogin)(userId, password);
+        if (!isLdapAuthentificated) {
+            return next(new bad_requests_1.default("Invalid Email or Password", http_exception_1.ErrorCode.INVALID_DATA));
+        }
+    }
+    else {
+        const isPasswordMatched = yield userEntity.comparePassword(password);
+        if (!isPasswordMatched) {
+            return next(new bad_requests_1.default("Invalid Email or Password", http_exception_1.ErrorCode.INVALID_DATA));
+        }
     }
     // When every thing is ok send Token to user
     const accessToken = userEntity.signAccessToken();

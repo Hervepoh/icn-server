@@ -25,11 +25,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const enum_1 = require("../constants/enum");
-const error_handler_1 = require("../error-handler");
 const auth_1 = __importStar(require("../middlewares/auth"));
 const summary_1 = require("../controllers/summary");
 const serviceName = enum_1.serviceType.SUMMARY;
 const summaryRoutes = (0, express_1.Router)();
-summaryRoutes.get('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], summary_1.all);
-summaryRoutes.get('/me', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(summary_1.me));
+summaryRoutes.get('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`, `${serviceName}-README`)], summary_1.summary);
 exports.default = summaryRoutes;

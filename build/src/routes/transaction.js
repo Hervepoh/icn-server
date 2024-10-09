@@ -33,7 +33,7 @@ const transactionRoutes = (0, express_1.Router)();
 transactionRoutes.post('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-CREATE`, `${serviceName}-WRITE`)], (0, error_handler_1.errorHandler)(transaction_1.create));
 transactionRoutes.get('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(transaction_1.get));
 transactionRoutes.get('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(transaction_1.getById));
-transactionRoutes.put('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-UPDATE`, `${serviceName}-VALIDATE`, `${serviceName}-ASSIGN`, `${serviceName}-WRITE`)], (0, error_handler_1.errorHandler)(transaction_1.update));
+transactionRoutes.put('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-UPDATE`, `${serviceName}-VALIDATE`, `${serviceName}-ASSIGN`, `${serviceName}-WRITE`, `${serviceName}-COMMERCIAL`)], (0, error_handler_1.errorHandler)(transaction_1.update));
 transactionRoutes.delete('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-DELETE`, `${serviceName}-WRITE`)], (0, error_handler_1.errorHandler)(transaction_1.softRemove));
 transactionRoutes.delete('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-FULLDELETE`)], (0, error_handler_1.errorHandler)(transaction_1.remove));
 transactionRoutes.post('/bulk', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-BULKCREATE`)], (0, error_handler_1.errorHandler)(transaction_1.bulkCreate));

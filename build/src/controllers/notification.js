@@ -107,7 +107,8 @@ node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0
                     user: { name: notification.email },
                     from: `ICN CASHING`,
                     text: notification.message,
-                    supportmail: secrets_1.MAIL_NO_REPLY
+                    supportmail: secrets_1.MAIL_NO_REPLY,
+                    domain: secrets_1.MAIL_DOMAIN
                 };
                 const template = notification.template || "notification.mail.ejs";
                 const html = yield ejs_1.default.renderFile(path_1.default.join(__dirname, `../mails/${template}`), data);
@@ -120,7 +121,7 @@ node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0
                     });
                 }
                 catch (error) {
-                    (0, log_1.logErrorToFile)(error);
+                    (0, log_1.writeLogEntry)(error);
                     //throw new HttpException(error.message, 500, ErrorCode.INTERNAL_EXCEPTION, null);
                 }
                 console.log(`Email sent to ${notification.email}`);
@@ -153,7 +154,7 @@ node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0
             });
         }
         catch (error) {
-            (0, log_1.logErrorToFile)(error);
+            (0, log_1.writeLogEntry)(error);
             console.error(`Error sending notification to ${notification.email || notification.phone}:`, error);
         }
         console.log('----------------------------');

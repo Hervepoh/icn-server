@@ -13,7 +13,7 @@ import { REDIS_SESSION_EXPIRE } from "../secrets";
 import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
 import { getUserConnected } from "../libs/authentificationService";
-import { SourceType, Transaction } from '@prisma/client';
+import { NotificationMethod, SourceType, Transaction } from '@prisma/client';
 import { updateSchema } from "../schema/users";
 import { EventType } from "../constants/enum";
 
@@ -42,7 +42,7 @@ interface TransactionWithRelations extends Transaction {
 }
 
 const key = 'transactions';
-
+type notificationType = "edit" | "publish" | "reject" | "validate" | "assign" | "treat";
 //-----------------------------------------------------------------------------
 //             CREATE TRANSACTIONS : post /transactions
 //-----------------------------------------------------------------------------
@@ -87,17 +87,29 @@ export const create =
       data: transaction,
     });
 
+    // User notification by mail
+    await prismaClient.notification.create({
+      data: {
+        email: user.email,
+        message: `A new transaction has been created with the following details :     - **Status** : Draft ,   - **Customer** : ${transaction.name} , - **Amount** : ${transaction.amount} , - **Payment Date** : ${transaction.paymentDate} . Please review the transaction at your earliest convenience.`,
+        method: NotificationMethod.EMAIL,
+        subject: "New transaction have been created successfully.",
+        template: "notification.mail.ejs",
+      },
+    });
+
     // Audit entry for tracking purpose
     await prismaClient.audit.create({
       data: {
         userId: user.id,
         ipAddress: req.ip,
         action: EventType.TRANSACTION,
-        details: `User : ${user.email} created new Transaction : customer ${transaction.name} , amount : ${transaction.amount} , payment date : ${transaction.paymentDate} , payment mode : ${transaction.paymentModeId} , bank : ${transaction.bankId}`,
+        details: `User : ${user.email} created new Transaction : ${JSON.stringify(transaction)}`,
         endpoint: '/transactions',
         source: SourceType.USER
       },
     });
+
 
   };
 
@@ -109,7 +121,7 @@ export const create =
 // Handling get process   
 export const get =
   async (req: Request, res: Response, next: NextFunction) => {
-    console.log(req.user?.role);
+
     const soft = req.user?.role.name !== "ADMIN" ? { deleted: false } : {};
     let query: any = {
       include: {
@@ -255,6 +267,7 @@ export const update =
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
     const validatedId = idSchema.parse(id);
+    let notificationType: notificationType = "edit";
 
     // Check body request params for security purposes
     const forbiddenFields = [
@@ -304,6 +317,7 @@ export const update =
       });
       if (!userId) throw new BadRequestException("Bad request unvalidate userId", ErrorCode.UNAUTHORIZE);
       data.userId = userId.id
+      notificationType = "assign"
     }
 
     if (req.body.status) {
@@ -324,13 +338,14 @@ export const update =
           const refId = await genereteICNRef(request.paymentDate);
           data.reference = refId.reference
         }
-
+        notificationType = "publish"
       }
 
       // For validation
       if (req.body.status.toLocaleLowerCase() === appConfig.status[3].toLocaleLowerCase()) {
         data.validatorId = user.id;
         data.validatedAt = new Date();
+        notificationType = "validate"
       }
 
       // For Reject
@@ -339,6 +354,7 @@ export const update =
         data.validatedAt = new Date();
         data.refusal = true;
         data.reasonForRefusal = req.body.reasonForRefusal;
+        notificationType = "reject"
       }
 
     }
@@ -357,12 +373,26 @@ export const update =
     idService(id);
     revalidateService(key);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Resource updated successfully",
       data: result,
     });
 
+    // Notification for all type of event
+    notification(notificationType, result, user)
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User: ${user.email} has updated the transaction with ID: ${JSON.stringify(id)}. change value: ${JSON.stringify(data)}`,
+        endpoint: '/transactions',
+        source: SourceType.USER
+      },
+    });
   };
 
 
@@ -386,6 +416,19 @@ export const remove =
     revalidateService(key);
 
     res.status(204).send();
+
+    const user = await getUserConnected(req);
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} has deleted Transaction : ${JSON.stringify(id)}`,
+        endpoint: '/transactions',
+        source: SourceType.USER
+      },
+    });
   };
 
 
@@ -425,13 +468,25 @@ export const softRemove =
 
     res.status(204).send();
 
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} has deleted Transaction : ${JSON.stringify(id)}`,
+        endpoint: '/transactions',
+        source: SourceType.USER
+      },
+    });
+
   };
 
 
 
 
 //-----------------------------------------------------------------------------
-//             BULK-CREATE ROLE : post /roles
+//             BULK-CREATE TRANSACTIONS : post /transactions/bluk
 //-----------------------------------------------------------------------------
 
 // IBulkCreateRequest interface definition
@@ -449,7 +504,6 @@ export const bulkCreate =
       throw new BadRequestException("Request body must be a non-empty array", ErrorCode.INVALID_DATA);
     }
 
-    console.log("body", req.body);
     // const parsedData = bulkCreateSchema.parse(req.body as IBulkCreateRequest);
     // get the user information
     const user = await prismaClient.user.findFirst({
@@ -457,15 +511,12 @@ export const bulkCreate =
     });
     if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
 
-    const payMode = await prismaClient.paymentMode.findFirst();
-    if (!payMode) throw new ConfigurationException("Payment mode not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
 
 
     const validRequests = [];
     // Validate each request
     for (const requestData of requests) {
-      const { name, amount, bank, payment_date } = requestData;
-      console.log("requestData", requestData)
+      const { name, amount, bank, mode, payment_date } = requestData;
       // Validate required fields for each request
       if (!name || !amount || !bank || !payment_date) {
         throw new BadRequestException("All fields (payment_date, name, amount, bank) are required for each request", ErrorCode.INVALID_DATA);
@@ -475,12 +526,16 @@ export const bulkCreate =
         where: { id: bank }
       });
       if (!bankData) throw new ConfigurationException("bankData not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
-  
 
+      const payMode = await prismaClient.paymentMode.findFirst({
+        where: { id: mode }
+      });
+      if (!payMode) throw new ConfigurationException("Payment mode not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
+  
       // Generate a unique reference if it's not provided
-      const uniqueReference = await genereteICNRef(parseDMY(payment_date));
+      // const uniqueReference = await genereteICNRef(parseDMY(payment_date));
       const data = transactionSchema.parse({
-        reference: uniqueReference.reference,
+        // reference: uniqueReference.reference,
         name,
         amount,
         bankId: bankData.id,
@@ -497,7 +552,7 @@ export const bulkCreate =
     }
 
     // Insert all valid requests into the database
-    const createdRequests = await prismaClient.transaction.createMany({data: validRequests});
+    const createdRequests = await prismaClient.transaction.createMany({ data: validRequests });
 
     res.status(201).json({
       success: true,
@@ -609,3 +664,134 @@ async function genereteICNRef(date: Date) {
 
   return await prismaClient.reference.create({ data: { reference: newReference } });
 }
+
+
+
+async function notification(type: notificationType, transaction: any, user: any) {
+  let createdBy;
+  // Check the notification type
+  switch (type) {
+    case "publish":
+      // Handle publish case Notified the user and notified all validator
+      // user
+      await prismaClient.notification.create({
+        data: {
+          email: user.email,
+          message: `Your transaction ID : ${transaction.reference} has been published and is currently undergoing validation.`,
+          method: NotificationMethod.EMAIL,
+          subject: "New published transaction",
+          template: "notification.mail.ejs",
+        },
+      });
+      // validators
+      const validadors = await getUsersWithRole();
+      for (const validador of validadors) {
+        await prismaClient.notification.create({
+          data: {
+            email: validador.email,
+            message: `You have a new transaction that requires your attention for validation. Transaction ID: ${transaction.reference} Please review it at your earliest convenience.`,
+            method: NotificationMethod.EMAIL,
+            subject: " New Transaction Awaiting Your Validation",
+            template: "notification.mail.ejs",
+          },
+        });
+      }
+
+      break;
+    case "reject":
+      // Handle reject case and notified the person who created the transactions
+      createdBy = await prismaClient.user.findFirst({
+        where: { id: transaction.createdBy }
+      })
+      if (createdBy) {
+        await prismaClient.notification.create({
+          data: {
+            email: createdBy.email,
+            message: `Your transaction ID: ${transaction.reference} has been rejected.`,
+            method: NotificationMethod.EMAIL,
+            subject: "Transaction Rejected",
+            template: "notification.mail.ejs",
+          },
+        });
+      }
+
+      break;
+    case "validate":
+      // Handle validate case and notify the person who created the transaction and all assignators
+      createdBy = await prismaClient.user.findFirst({
+        where: { id: transaction.createdBy },
+      });
+      if (createdBy) {
+        await prismaClient.notification.create({
+          data: {
+            email: createdBy.email,
+            message: `Your transaction ID: ${transaction.reference} has been validated ,and is undergoing assignation process.`,
+            method: NotificationMethod.EMAIL,
+            subject: "Transaction Validated",
+            template: "notification.mail.ejs",
+          },
+        });
+      }
+      // assignators
+      const assignators = await getUsersWithRole('ASSIGNATOR');
+      for (const assignator of assignators) {
+        await prismaClient.notification.create({
+          data: {
+            email: assignator.email,
+            message: `You have a new transaction that requires an assignation. Transaction ID: ${transaction.reference} Please review it at your earliest convenience.`,
+            method: NotificationMethod.EMAIL,
+            subject: " New Transaction Awaiting An Assignation",
+            template: "notification.mail.ejs",
+          },
+        });
+      }
+      break;
+    case "assign":
+      // Handle assign case and notify the person who created the transaction
+      const assignCreator = await prismaClient.user.findFirst({
+        where: { id: transaction.userId },
+      });
+      if (assignCreator) {
+        await prismaClient.notification.create({
+          data: {
+            email: assignCreator.email,
+            message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
+            method: NotificationMethod.EMAIL,
+            subject: "Transaction Assigned",
+            template: "notification.mail.ejs",
+          },
+        });
+      }
+      break;
+    case "treat":
+      // Handle treat case if needed
+      break;
+    default:
+      console.log("Notification type",type) // TODO ajouter le cas in process (Personne a notifié ??)
+      //throw new Error("Invalid notification type");
+  }
+
+
+}
+
+type role = "VALIDATOR" | "ASSIGNATOR"
+const getUsersWithRole = async (role: string = "VALIDATOR") => {
+  const users = await prismaClient.user.findMany({
+    where: {
+      roles: {
+        some: {
+          role: {
+            name: role,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+  return users;
+};
+

@@ -32,6 +32,7 @@ const serviceName = enum_1.serviceType.USER;
 const userRoutes = (0, express_1.Router)();
 userRoutes.post('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-CREATE`)], (0, error_handler_1.errorHandler)(user_1.create));
 userRoutes.get('/commercial', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-SEARCH`)], (0, error_handler_1.errorHandler)(user_1.getCommercialUsers));
+userRoutes.get('/public', [auth_1.default], (0, error_handler_1.errorHandler)(user_1.getPublic));
 userRoutes.get('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(user_1.get));
 userRoutes.get('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(user_1.getById));
 userRoutes.put('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-UPDATE`)], (0, error_handler_1.errorHandler)(user_1.update));

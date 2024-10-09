@@ -25,7 +25,7 @@ interface IUser {
     name: string;
     email: string;
     password: string;
-    ldap? : boolean;
+    ldap?: boolean;
     avatar?: string;
     roleId?: any
 }
@@ -35,7 +35,7 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
     // Validate input
     signUpSchema.parse(req.body);
 
-    const { name, email, password, roleId ,ldap } = req.body as IUser;
+    const { name, email, password, roleId, ldap } = req.body as IUser;
 
     if (!isAnAcceptablePassword(password)) {
         throw new BadRequestException(`Invalid Password : ${acceptablePasswordPolicy}`, ErrorCode.INVALID_DATA);
@@ -70,16 +70,16 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
             roleId: role.id,
         }
     });
-     
-    const message = ldap 
-    ? `**Email**: ${user.email} \n\n Please use your Outlook password to log in.`
-    : `**Email**: ${user.email} \n\n  **Temporary Password**: ${password}.`;
+
+    const message = ldap
+        ? `**Email**: ${user.email} \n\n Please use your Outlook password to log in.`
+        : `**Email**: ${user.email} \n\n  **Temporary Password**: ${password}.`;
 
     // User notification by mail
     await prismaClient.notification.create({
         data: {
             email: user.email,
-            message: message ,
+            message: message,
             method: NotificationMethod.EMAIL,
             subject: "Your account has been created successfully.",
             template: "new.mail.ejs",
@@ -126,24 +126,24 @@ export const get =
 
 // Handling the process GET users information 
 export const getPublic =
-async (req: Request, res: Response, next: NextFunction) => {
-    const public_key = key+'_public'
-    const usersJSON = await redis.get(public_key);
-    if (usersJSON) {
-        const data = JSON.parse(usersJSON);
-        res.status(200).json({
-            success: true,
-            data,
-        });
-    } else {
-        const data = await revalidePublicistService(public_key);
+    async (req: Request, res: Response, next: NextFunction) => {
+        const public_key = key + '_public'
+        const usersJSON = await redis.get(public_key);
+        if (usersJSON) {
+            const data = JSON.parse(usersJSON);
+            res.status(200).json({
+                success: true,
+                data,
+            });
+        } else {
+            const data = await revalidePublicistService(public_key);
 
-        res.status(200).json({
-            success: true,
-            data,
-        });
-    }
-};
+            res.status(200).json({
+                success: true,
+                data,
+            });
+        }
+    };
 
 //-----------------------------------------------
 //       Get All Users : get users
@@ -152,7 +152,7 @@ async (req: Request, res: Response, next: NextFunction) => {
 // Handling the process GET users information 
 export const getCommercialUsers =
     async (req: Request, res: Response, next: NextFunction) => {
-        const usersJSON = await redis.get(key+'_role_commercial');
+        const usersJSON = await redis.get(key + '_role_commercial');
         if (usersJSON) {
             const data = JSON.parse(usersJSON);
             res.status(200).json({
@@ -160,7 +160,7 @@ export const getCommercialUsers =
                 data,
             });
         } else {
-            const data = await revalideCommercialListService(key);
+            const data = await revalideCommercialListService(key + '_role_commercial');
             res.status(200).json({
                 success: true,
                 data,
@@ -209,8 +209,8 @@ export const update =
             data: parsedInput,
         });
         revalidateService(key);
-        revalideCommercialListService(key);
-
+        revalideCommercialListService(key + '_role_commercial');
+        revalidePublicistService(key + '_public')
         res.status(200).json({
             success: true,
             data: data
@@ -251,11 +251,10 @@ export const remove =
 export const getUserNotification =
     async (req: Request, res: Response, next: NextFunction) => {
 
-        console.log("user",req.user);
         if (!req.user?.id) {
             throw new BadRequestException('Please first login if you want to achieve this action', ErrorCode.INVALID_DATA)
         }
-      
+
 
         const notifications = await prismaClient.notification
             .findMany(
@@ -290,49 +289,68 @@ export const addUserRole =
     async (req: Request, res: Response, next: NextFunction) => {
         const parsedData = userRoleSchema.parse(req.body as IUpdateUserRoleRequest);
         if (!parsedData) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
-        const redis_roles = await redis.get('roles');
-        const data = JSON.parse(redis_roles || '');
 
 
-        // const validRoles: string[] = ["admin", "teacher", ;
-        // if (!validRoles.includes(role)) {
-        //   return next(new ErrorHandler("Invalid 'role'", 400));
-        // }
+        const user = await prismaClient.user.findUnique({
+            where: { id: parsedData.userId },
+        });
+        if (!user) throw new NotFoundException("User not found", ErrorCode.RESSOURCE_NOT_FOUND);
 
-        // const user = await userModel.findById(userId);
+        const role = await prismaClient.role.findUnique({
+            where: { id: parsedData.roleId },
+        });
+        if (!role) throw new NotFoundException("Role not found", ErrorCode.RESSOURCE_NOT_FOUND);
 
-        // if (!user) {
-        //   return next(new ErrorHandler("User not found", 404));
-        // }
+        await prismaClient.userRole.create({
+            data:  parsedData,
+        });
 
-        // updateUserRoleService(res, userId, role);
+        res.status(200).json({
+            success: true,
+            message : "Role added successfully",
+        });
+
         revalidateService(key);
-        revalideCommercialListService(key);
-
+        revalideCommercialListService(key + '_role_commercial');
     };
+
 
 export const removeUserRole =
     async (req: Request, res: Response, next: NextFunction) => {
-        const { userId, roleId } = req.body as IUpdateUserRoleRequest;
-        if (!userId || !roleId) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
+
+        const parsedData = userRoleSchema.parse(req.body as IUpdateUserRoleRequest);
+        if (!parsedData) throw new BadRequestException("Invalid data provided please ckeck the documentation", ErrorCode.INVALID_DATA);
 
         const redis_roles = await redis.get('roles');
         const data = JSON.parse(redis_roles || '');
 
-        // const validRoles: string[] = ["admin", "teacher", ;
-        // if (!validRoles.includes(role)) {
-        //   return next(new ErrorHandler("Invalid 'role'", 400));
-        // }
+        const user = await prismaClient.user.findUnique({
+            where: { id: parsedData.userId },
+        });
+        if (!user) throw new NotFoundException("User not found", ErrorCode.RESSOURCE_NOT_FOUND);
 
-        // const user = await userModel.findById(userId);
+        const role = await prismaClient.role.findUnique({
+            where: { id: parsedData.roleId },
+        });
+        if (!role) throw new NotFoundException("Role not found", ErrorCode.RESSOURCE_NOT_FOUND);
 
-        // if (!user) {
-        //   return next(new ErrorHandler("User not found", 404));
-        // }
 
-        // updateUserRoleService(res, userId, role);
+        await prismaClient.userRole.delete({
+            where: {
+                userId_roleId: {
+                    userId: parsedData.userId,
+                    roleId: parsedData.roleId,
+                },
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message : "Role removed successfully",
+        });
+
         revalidateService(key);
-        revalideCommercialListService(key);
+        revalideCommercialListService(key + '_role_commercial');
 
     };
 
@@ -353,7 +371,7 @@ const revalideCommercialListService = async (key: string) => {
             roles: {
                 some: {
                     role: {
-                        name: 'COMMERCIAL', 
+                        name: 'COMMERCIAL',
                     },
                 },
             },
@@ -367,7 +385,7 @@ const revalideCommercialListService = async (key: string) => {
             createdAt: 'desc',
         },
     });
-    await redis.set(key+'_role_commercial', JSON.stringify(data));
+    await redis.set(key + '_role_commercial', JSON.stringify(data));
     return data
 }
 

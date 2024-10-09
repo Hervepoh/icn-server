@@ -107,17 +107,24 @@ const getUnpaidBillsByContractNumber = (req, res, next) => __awaiter(void 0, voi
     if (!FromDate || !ToDate) {
         throw new bad_requests_1.default("Invalid parameters", http_exception_1.ErrorCode.INVALID_DATA);
     }
-    // Fetch data from the database
-    const result = yield (0, db_oracle_1.executeQuery)(request_1.sqlQuery.unpaid_bills_by_contract_number, [
-        contract_number,
-        (0, date_fns_1.format)(FromDate.toString(), "dd/MM/yyyy"),
-        (0, date_fns_1.format)(ToDate.toString(), "dd/MM/yyyy")
-    ]);
-    // send the response
-    return res.status(200).json({
-        success: true,
-        bills: result.rows
-    });
+    try {
+        // Fetch data from the database
+        const result = yield (0, db_oracle_1.executeQuery)(request_1.sqlQuery.unpaid_bills_by_contract_number, [
+            contract_number,
+            (0, date_fns_1.format)(FromDate.toString(), "dd/MM/yyyy"),
+            (0, date_fns_1.format)(ToDate.toString(), "dd/MM/yyyy")
+        ]); // send the response
+        return res.status(200).json({
+            success: true,
+            bills: result.rows
+        });
+    }
+    catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "An error in getUnpaidBillsByContractNumber"
+        });
+    }
 });
 exports.getUnpaidBillsByContractNumber = getUnpaidBillsByContractNumber;
 //---------------------------------------------------------

@@ -1,12 +1,14 @@
 import { NextFunction, Request, Response } from "express"
 import HttpException, { ErrorCode } from "./exceptions/http-exception";
 import InternalException from "./exceptions/internal-exception";
+import { LogLevel, LogType, writeLogEntry } from "./libs/utils/log";
 
 export const errorHandler = (method: Function) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         try {
             await method(req, res, next);
         } catch (error: any) {
+            writeLogEntry('Something went wrong !',LogLevel.ERROR,LogType.GENERAL,error);
             let exception: HttpException;
             if (error instanceof HttpException) {
                 exception = error;
