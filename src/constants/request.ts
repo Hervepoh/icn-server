@@ -278,22 +278,16 @@ export const sqlQuery = {
         where aci_number = to_char(:ACI_NUMBER)`,
 
 	icn_search_bill_status:
-		`select  
-			cob_fuente_id facture , 
-			est_cobtemp status , 
+		`select /*+ parallel(6) */ distinct 
+			cob_fuente_id facture, 
+			est_cobtemp status, 
 			imp_cob_bco montant , 
-			f_cobro_orig date_paiement , 
+			f_cobro_orig date_paiement, 
 			f_proc_cobro date_integration, 
 			num_gest_cobro num_session
-        from cobtemp WHERE cod_caja=5701473
-		where cob_fuente_id = :BillNber`,
-
-	new_invoice_document_capture:
-		`SELECT td.*,t.reference
-		FROM transaction_details td
-		JOIN transactions t ON td.transactionId = t.id
-		WHERE t.statusId = 8
-		  AND td.id NOT IN (SELECT transactionDetailsId FROM integration_documents)`
+        from cobtemp 
+		where cod_caja=5701473
+		and cob_fuente_id = :BillNber`
 
 }
 

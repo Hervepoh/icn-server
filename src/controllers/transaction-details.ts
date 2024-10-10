@@ -9,6 +9,7 @@ import { ErrorCode } from "../exceptions/http-exception";
 import prismaClient from "../libs/prismadb";
 import NotFoundException from "../exceptions/not-found";
 import UnauthorizedException from "../exceptions/unauthorized";
+import { EventType, SourceType } from "@prisma/client";
 
 
 export const get =
@@ -61,12 +62,24 @@ export const bulkCreate =
       amountTopaid: parseInt(item.amountUnpaid) ?? 0,
       transactionId: id
     }));
-     console.log(data);
-    await prismaClient.transactionDetail.createMany({data:data});
+    console.log(data);
+    await prismaClient.transactionDetail.createMany({ data: data });
 
     res.status(201).json({
       success: true,
       message: "Bulk request details created successfully",
+    });
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} added in transaction ID: ${id} new invoices : ${JSON.stringify(data)}`,
+        endpoint: 'transactions-details',
+        source: SourceType.USER
+      },
     });
 
   };
@@ -106,11 +119,11 @@ export const bulkUpdate =
     //     amountTopaid: row.amountTopaid,
     //   },
     // },
- 
+
     // await prismaClient.transactionDetail.updateMany({
     //   data: data,
     // });
-    console.log("",data,"data");
+    console.log("", data, "data");
     await Promise.all(data.map(async (item) => {
       await prismaClient.transactionDetail.updateMany({
         where: {
@@ -127,6 +140,19 @@ export const bulkUpdate =
       message: "successfully Bulk updated request details",
     });
 
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} updated in transaction ID: ${id} the invoices: ${JSON.stringify(data)}`,
+        endpoint: '/transactions-details',
+        source: SourceType.USER
+      },
+    });
+
+
   };
 
 
@@ -135,6 +161,12 @@ export const remove =
 
     const { id } = req.params;
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+
+    // check if the user id is valid
+    const user = await prismaClient.user.findUnique({
+      where: { id: req.user?.id }
+    });
+    if (!user) throw new UnauthorizedException("Unauthorize ressource due", ErrorCode.UNAUTHORIZE);
 
     const requestDetail = await prismaClient.transactionDetail.findUnique({
       where: { id: id },
@@ -146,9 +178,21 @@ export const remove =
       where: { id: id }
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "RequestDetail deleted successfully",
+    });
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} delete in transaction ID: ${id} the invoice: ${JSON.stringify(requestDetail)}`,
+        endpoint: '/transactions-details',
+        source: SourceType.USER
+      },
     });
 
   };
@@ -182,6 +226,18 @@ export const create =
     res.status(201).json({
       success: true,
       data: request,
+    });
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} create in transaction ID: ${requestId} new invoice: ${JSON.stringify(data)}`,
+        endpoint: '/transactions-details',
+        source: SourceType.USER
+      },
     });
 
   };
@@ -286,9 +342,21 @@ export const softDelete =
     });
     await redis.del(id);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Request soft deleted successfully",
+    });
+
+     // Audit entry for tracking purpose
+     await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} remove the invoice: ${id}`,
+        endpoint: '/transactions-details',
+        source: SourceType.USER
+      },
     });
 
   };
@@ -303,6 +371,12 @@ export const bulkSolftDelete =
     const { id } = req.params;
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
+    // get the user information
+    const user = await prismaClient.user.findFirst({
+      where: { id: req.user?.id },
+    });
+    if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+
     const request = await prismaClient.transactionDetail.findUnique({
       where: { id: id },
     });
@@ -313,9 +387,21 @@ export const bulkSolftDelete =
     });
     await redis.del(id);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Request deleted successfully",
+    });
+
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
+      data: {
+        userId: user.id,
+        ipAddress: req.ip,
+        action: EventType.TRANSACTION,
+        details: `User : ${user.email} remove in transaction ID: ${request.transactionId} the invoice: ${JSON.stringify(request)}`,
+        endpoint: '/transactions-details',
+        source: SourceType.USER
+      },
     });
 
   };
