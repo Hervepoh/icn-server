@@ -53,13 +53,23 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
         success: true,
         data: transaction,
     });
+    // User notification by mail
+    yield prismadb_1.default.notification.create({
+        data: {
+            email: user.email,
+            message: `A new transaction has been created with the following details :     - **Status** : Draft ,   - **Customer** : ${transaction.name} , - **Amount** : ${transaction.amount} , - **Payment Date** : ${transaction.paymentDate} . Please review the transaction at your earliest convenience.`,
+            method: client_1.NotificationMethod.EMAIL,
+            subject: "New transaction have been created successfully.",
+            template: "notification.mail.ejs",
+        },
+    });
     // Audit entry for tracking purpose
     yield prismadb_1.default.audit.create({
         data: {
             userId: user.id,
             ipAddress: req.ip,
             action: enum_1.EventType.TRANSACTION,
-            details: `User : ${user.email} created new Transaction : customer ${transaction.name} , amount : ${transaction.amount} , payment date : ${transaction.paymentDate} , payment mode : ${transaction.paymentModeId} , bank : ${transaction.bankId}`,
+            details: `User : ${user.email} created new Transaction : ${JSON.stringify(transaction)}`,
             endpoint: '/transactions',
             source: client_1.SourceType.USER
         },
@@ -71,9 +81,8 @@ exports.create = create;
 //-----------------------------------------------------------------------------
 // Handling get process   
 const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    console.log((_a = req.user) === null || _a === void 0 ? void 0 : _a.role);
-    const soft = ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role.name) !== "ADMIN" ? { deleted: false } : {};
+    var _a;
+    const soft = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.role.name) !== "ADMIN" ? { deleted: false } : {};
     let query = {
         include: {
             bank: {
@@ -183,6 +192,7 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     if (!id)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
     const validatedId = transactions_1.idSchema.parse(id);
+    let notificationType = "edit";
     // Check body request params for security purposes
     const forbiddenFields = [
         'createdAt', 'createdBy',
@@ -227,6 +237,7 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
         if (!userId)
             throw new bad_requests_1.default("Bad request unvalidate userId", http_exception_1.ErrorCode.UNAUTHORIZE);
         data.userId = userId.id;
+        notificationType = "assign";
     }
     if (req.body.status) {
         const status = yield prismadb_1.default.status.findFirst({
@@ -244,11 +255,13 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
                 const refId = yield genereteICNRef(request.paymentDate);
                 data.reference = refId.reference;
             }
+            notificationType = "publish";
         }
         // For validation
         if (req.body.status.toLocaleLowerCase() === app_config_1.appConfig.status[3].toLocaleLowerCase()) {
             data.validatorId = user.id;
             data.validatedAt = new Date();
+            notificationType = "validate";
         }
         // For Reject
         if (req.body.status.toLocaleLowerCase() === app_config_1.appConfig.status[4].toLocaleLowerCase()) {
@@ -256,6 +269,7 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             data.validatedAt = new Date();
             data.refusal = true;
             data.reasonForRefusal = req.body.reasonForRefusal;
+            notificationType = "reject";
         }
     }
     data = Object.assign(Object.assign({}, data), { modifiedBy: user.id, updatedAt: new Date() });
@@ -265,10 +279,23 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     });
     idService(id);
     revalidateService(key);
-    return res.status(200).json({
+    res.status(200).json({
         success: true,
         message: "Resource updated successfully",
         data: result,
+    });
+    // Notification for all type of event
+    notification(notificationType, result, user);
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: enum_1.EventType.TRANSACTION,
+            details: `User: ${user.email} has updated the transaction with ID: ${JSON.stringify(id)}. change value: ${JSON.stringify(data)}`,
+            endpoint: '/transactions',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.update = update;
@@ -287,6 +314,18 @@ const remove = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     yield redis_1.redis.del(id);
     revalidateService(key);
     res.status(204).send();
+    const user = yield (0, authentificationService_1.getUserConnected)(req);
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: enum_1.EventType.TRANSACTION,
+            details: `User : ${user.email} has deleted Transaction : ${JSON.stringify(id)}`,
+            endpoint: '/transactions',
+            source: client_1.SourceType.USER
+        },
+    });
 });
 exports.remove = remove;
 //-----------------------------------------------------------------------------
@@ -320,6 +359,17 @@ const softRemove = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     yield redis_1.redis.del(id);
     revalidateService(key);
     res.status(204).send();
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: enum_1.EventType.TRANSACTION,
+            details: `User : ${user.email} has deleted Transaction : ${JSON.stringify(id)}`,
+            endpoint: '/transactions',
+            source: client_1.SourceType.USER
+        },
+    });
 });
 exports.softRemove = softRemove;
 // Handling create role process
@@ -330,7 +380,6 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     if (!Array.isArray(requests) || requests.length === 0) {
         throw new bad_requests_1.default("Request body must be a non-empty array", http_exception_1.ErrorCode.INVALID_DATA);
     }
-    console.log("body", req.body);
     // const parsedData = bulkCreateSchema.parse(req.body as IBulkCreateRequest);
     // get the user information
     const user = yield prismadb_1.default.user.findFirst({
@@ -338,14 +387,10 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     });
     if (!user)
         throw new unauthorized_1.default("Unauthorize ressource", http_exception_1.ErrorCode.UNAUTHORIZE);
-    const payMode = yield prismadb_1.default.paymentMode.findFirst();
-    if (!payMode)
-        throw new configuration_1.default("Payment mode not found, please contact adminstrator", http_exception_1.ErrorCode.BAD_CONFIGURATION);
     const validRequests = [];
     // Validate each request
     for (const requestData of requests) {
-        const { name, amount, bank, payment_date } = requestData;
-        console.log("requestData", requestData);
+        const { name, amount, bank, mode, payment_date } = requestData;
         // Validate required fields for each request
         if (!name || !amount || !bank || !payment_date) {
             throw new bad_requests_1.default("All fields (payment_date, name, amount, bank) are required for each request", http_exception_1.ErrorCode.INVALID_DATA);
@@ -355,10 +400,15 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         });
         if (!bankData)
             throw new configuration_1.default("bankData not found, please contact adminstrator", http_exception_1.ErrorCode.BAD_CONFIGURATION);
+        const payMode = yield prismadb_1.default.paymentMode.findFirst({
+            where: { id: mode }
+        });
+        if (!payMode)
+            throw new configuration_1.default("Payment mode not found, please contact adminstrator", http_exception_1.ErrorCode.BAD_CONFIGURATION);
         // Generate a unique reference if it's not provided
-        const uniqueReference = yield genereteICNRef((0, formatter_1.parseDMY)(payment_date));
+        // const uniqueReference = await genereteICNRef(parseDMY(payment_date));
         const data = transactions_1.transactionSchema.parse({
-            reference: uniqueReference.reference,
+            // reference: uniqueReference.reference,
             name,
             amount,
             bankId: bankData.id,
@@ -459,3 +509,126 @@ function genereteICNRef(date) {
         return yield prismadb_1.default.reference.create({ data: { reference: newReference } });
     });
 }
+function notification(type, transaction, user) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let createdBy;
+        // Check the notification type
+        switch (type) {
+            case "publish":
+                // Handle publish case Notified the user and notified all validator
+                // user
+                yield prismadb_1.default.notification.create({
+                    data: {
+                        email: user.email,
+                        message: `Your transaction ID : ${transaction.reference} has been published and is currently undergoing validation.`,
+                        method: client_1.NotificationMethod.EMAIL,
+                        subject: "New published transaction",
+                        template: "notification.mail.ejs",
+                    },
+                });
+                // validators
+                const validadors = yield getUsersWithRole();
+                for (const validador of validadors) {
+                    yield prismadb_1.default.notification.create({
+                        data: {
+                            email: validador.email,
+                            message: `You have a new transaction that requires your attention for validation. Transaction ID: ${transaction.reference} Please review it at your earliest convenience.`,
+                            method: client_1.NotificationMethod.EMAIL,
+                            subject: " New Transaction Awaiting Your Validation",
+                            template: "notification.mail.ejs",
+                        },
+                    });
+                }
+                break;
+            case "reject":
+                // Handle reject case and notified the person who created the transactions
+                createdBy = yield prismadb_1.default.user.findFirst({
+                    where: { id: transaction.createdBy }
+                });
+                if (createdBy) {
+                    yield prismadb_1.default.notification.create({
+                        data: {
+                            email: createdBy.email,
+                            message: `Your transaction ID: ${transaction.reference} has been rejected.`,
+                            method: client_1.NotificationMethod.EMAIL,
+                            subject: "Transaction Rejected",
+                            template: "notification.mail.ejs",
+                        },
+                    });
+                }
+                break;
+            case "validate":
+                // Handle validate case and notify the person who created the transaction and all assignators
+                createdBy = yield prismadb_1.default.user.findFirst({
+                    where: { id: transaction.createdBy },
+                });
+                if (createdBy) {
+                    yield prismadb_1.default.notification.create({
+                        data: {
+                            email: createdBy.email,
+                            message: `Your transaction ID: ${transaction.reference} has been validated ,and is undergoing assignation process.`,
+                            method: client_1.NotificationMethod.EMAIL,
+                            subject: "Transaction Validated",
+                            template: "notification.mail.ejs",
+                        },
+                    });
+                }
+                // assignators
+                const assignators = yield getUsersWithRole('ASSIGNATOR');
+                for (const assignator of assignators) {
+                    yield prismadb_1.default.notification.create({
+                        data: {
+                            email: assignator.email,
+                            message: `You have a new transaction that requires an assignation. Transaction ID: ${transaction.reference} Please review it at your earliest convenience.`,
+                            method: client_1.NotificationMethod.EMAIL,
+                            subject: " New Transaction Awaiting An Assignation",
+                            template: "notification.mail.ejs",
+                        },
+                    });
+                }
+                break;
+            case "assign":
+                // Handle assign case and notify the person who created the transaction
+                const assignCreator = yield prismadb_1.default.user.findFirst({
+                    where: { id: transaction.userId },
+                });
+                if (assignCreator) {
+                    yield prismadb_1.default.notification.create({
+                        data: {
+                            email: assignCreator.email,
+                            message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
+                            method: client_1.NotificationMethod.EMAIL,
+                            subject: "Transaction Assigned",
+                            template: "notification.mail.ejs",
+                        },
+                    });
+                }
+                break;
+            case "treat":
+                // Handle treat case if needed
+                break;
+            default:
+                console.log("Notification type", type); // TODO ajouter le cas in process (Personne a notifié ??)
+            //throw new Error("Invalid notification type");
+        }
+    });
+}
+const getUsersWithRole = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (role = "VALIDATOR") {
+    const users = yield prismadb_1.default.user.findMany({
+        where: {
+            roles: {
+                some: {
+                    role: {
+                        name: role,
+                    },
+                },
+            },
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+        },
+    });
+    return users;
+});

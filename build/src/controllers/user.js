@@ -142,7 +142,7 @@ const getCommercialUsers = (req, res, next) => __awaiter(void 0, void 0, void 0,
         });
     }
     else {
-        const data = yield revalideCommercialListService(key);
+        const data = yield revalideCommercialListService(key + '_role_commercial');
         res.status(200).json({
             success: true,
             data,
@@ -185,7 +185,8 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
         data: parsedInput,
     });
     revalidateService(key);
-    revalideCommercialListService(key);
+    revalideCommercialListService(key + '_role_commercial');
+    revalidePublicistService(key + '_public');
     res.status(200).json({
         success: true,
         data: data
@@ -218,7 +219,6 @@ exports.remove = remove;
 //-----------------------------------------------
 const getUserNotification = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    console.log("user", req.user);
     if (!((_a = req.user) === null || _a === void 0 ? void 0 : _a.id)) {
         throw new bad_requests_1.default('Please first login if you want to achieve this action', http_exception_1.ErrorCode.INVALID_DATA);
     }
@@ -241,38 +241,57 @@ const addUserRole = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
     const parsedData = users_1.userRoleSchema.parse(req.body);
     if (!parsedData)
         throw new bad_requests_1.default("Invalid data provided please ckeck the documentation", http_exception_1.ErrorCode.INVALID_DATA);
-    const redis_roles = yield redis_1.redis.get('roles');
-    const data = JSON.parse(redis_roles || '');
-    // const validRoles: string[] = ["admin", "teacher", ;
-    // if (!validRoles.includes(role)) {
-    //   return next(new ErrorHandler("Invalid 'role'", 400));
-    // }
-    // const user = await userModel.findById(userId);
-    // if (!user) {
-    //   return next(new ErrorHandler("User not found", 404));
-    // }
-    // updateUserRoleService(res, userId, role);
+    const user = yield prismadb_1.default.user.findUnique({
+        where: { id: parsedData.userId },
+    });
+    if (!user)
+        throw new not_found_1.default("User not found", http_exception_1.ErrorCode.RESSOURCE_NOT_FOUND);
+    const role = yield prismadb_1.default.role.findUnique({
+        where: { id: parsedData.roleId },
+    });
+    if (!role)
+        throw new not_found_1.default("Role not found", http_exception_1.ErrorCode.RESSOURCE_NOT_FOUND);
+    yield prismadb_1.default.userRole.create({
+        data: parsedData,
+    });
+    res.status(200).json({
+        success: true,
+        message: "Role added successfully",
+    });
     revalidateService(key);
-    revalideCommercialListService(key);
+    revalideCommercialListService(key + '_role_commercial');
 });
 exports.addUserRole = addUserRole;
 const removeUserRole = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const { userId, roleId } = req.body;
-    if (!userId || !roleId)
+    const parsedData = users_1.userRoleSchema.parse(req.body);
+    if (!parsedData)
         throw new bad_requests_1.default("Invalid data provided please ckeck the documentation", http_exception_1.ErrorCode.INVALID_DATA);
     const redis_roles = yield redis_1.redis.get('roles');
     const data = JSON.parse(redis_roles || '');
-    // const validRoles: string[] = ["admin", "teacher", ;
-    // if (!validRoles.includes(role)) {
-    //   return next(new ErrorHandler("Invalid 'role'", 400));
-    // }
-    // const user = await userModel.findById(userId);
-    // if (!user) {
-    //   return next(new ErrorHandler("User not found", 404));
-    // }
-    // updateUserRoleService(res, userId, role);
+    const user = yield prismadb_1.default.user.findUnique({
+        where: { id: parsedData.userId },
+    });
+    if (!user)
+        throw new not_found_1.default("User not found", http_exception_1.ErrorCode.RESSOURCE_NOT_FOUND);
+    const role = yield prismadb_1.default.role.findUnique({
+        where: { id: parsedData.roleId },
+    });
+    if (!role)
+        throw new not_found_1.default("Role not found", http_exception_1.ErrorCode.RESSOURCE_NOT_FOUND);
+    yield prismadb_1.default.userRole.delete({
+        where: {
+            userId_roleId: {
+                userId: parsedData.userId,
+                roleId: parsedData.roleId,
+            },
+        },
+    });
+    res.status(200).json({
+        success: true,
+        message: "Role removed successfully",
+    });
     revalidateService(key);
-    revalideCommercialListService(key);
+    revalideCommercialListService(key + '_role_commercial');
 });
 exports.removeUserRole = removeUserRole;
 const revalidateService = (key) => __awaiter(void 0, void 0, void 0, function* () {

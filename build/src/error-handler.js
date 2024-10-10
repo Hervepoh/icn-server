@@ -38,12 +38,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.errorHandler = void 0;
 const http_exception_1 = __importStar(require("./exceptions/http-exception"));
 const internal_exception_1 = __importDefault(require("./exceptions/internal-exception"));
+const log_1 = require("./libs/utils/log");
 const errorHandler = (method) => {
     return (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             yield method(req, res, next);
         }
         catch (error) {
+            (0, log_1.writeLogEntry)('Something went wrong !', log_1.LogLevel.ERROR, log_1.LogType.GENERAL, error);
             let exception;
             if (error instanceof http_exception_1.default) {
                 exception = error;

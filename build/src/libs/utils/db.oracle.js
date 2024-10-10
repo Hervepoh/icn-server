@@ -37,6 +37,7 @@ exports.getConnection = getConnection;
 exports.releaseConnection = releaseConnection;
 const db_config_1 = require("../../config/db.config");
 const http_exception_1 = __importStar(require("../../exceptions/http-exception"));
+const log_1 = require("./log");
 var oracledb = require('oracledb');
 // Function to establish a connection to the database
 function getConnection() {
@@ -46,7 +47,7 @@ function getConnection() {
             return connection;
         }
         catch (err) {
-            console.error('Erreur lors de la connexion à la base de données:', err);
+            (0, log_1.writeLogEntry)('Database connection error', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, [err]);
             throw err;
         }
     });
@@ -58,7 +59,7 @@ function releaseConnection(connection) {
             yield connection.close();
         }
         catch (err) {
-            console.error('Erreur lors de la fermeture de la connexion:', err);
+            (0, log_1.writeLogEntry)('Closing database connection error:', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, [err]);
             throw err;
         }
     });
@@ -74,7 +75,7 @@ const executeQuery = (query_1, ...args_1) => __awaiter(void 0, [query_1, ...args
     }
     catch (error) {
         // Catch the error and return and error response
-        console.error('Internal error:', error);
+        (0, log_1.writeLogEntry)('Internal error:', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, error);
         return new http_exception_1.default(error.message, 500, http_exception_1.ErrorCode.INTERNAL_EXCEPTION, error);
     }
     finally {

@@ -5,7 +5,7 @@ const client_1 = require("@prisma/client");
 const globalForPrisma = globalThis;
 const prismaClient = globalForPrisma.prismaClient || new client_1.PrismaClient({
     log: [
-        // { level: 'query', emit: 'event' },
+        { level: 'query', emit: 'event' },
         { level: 'info', emit: 'stdout' },
         { level: 'warn', emit: 'stdout' },
         { level: 'error', emit: 'stdout' },

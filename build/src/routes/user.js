@@ -36,7 +36,7 @@ userRoutes.get('/public', [auth_1.default], (0, error_handler_1.errorHandler)(us
 userRoutes.get('/', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(user_1.get));
 userRoutes.get('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`)], (0, error_handler_1.errorHandler)(user_1.getById));
 userRoutes.put('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-UPDATE`)], (0, error_handler_1.errorHandler)(user_1.update));
-userRoutes.delete('/:id', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-DELETE`)], (0, error_handler_1.errorHandler)(user_1.remove));
+userRoutes.delete('/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-DELETE`)], (0, error_handler_1.errorHandler)(user_1.remove));
 userRoutes.get('/notifications', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-READNOTIFICATION`, `${serviceName}-NOTIFICATION`)], (0, error_handler_1.errorHandler)(user_1.getUserNotification));
 userRoutes.post('/role', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-ADDROLE`, `${serviceName}-ROLE`)], (0, error_handler_1.errorHandler)(user_1.addUserRole));
 userRoutes.delete('/role', [auth_1.default, (0, auth_1.authorizeMiddleware)(`${serviceName}-REMOVEROLE`, `${serviceName}-ROLE`)], (0, error_handler_1.errorHandler)(user_1.removeUserRole));

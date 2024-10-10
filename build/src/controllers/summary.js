@@ -76,8 +76,6 @@ function fetchSummaryData(from, to, type, userIdOrCreatedBy) {
     return __awaiter(this, void 0, void 0, function* () {
         const fromDate = (0, date_fns_1.format)(from, "yyyy-MM-dd");
         const toDate = (0, date_fns_1.format)(to, "yyyy-MM-dd");
-        console.log("fromDate", fromDate);
-        console.log("toDate", toDate);
         const filter = `${type === 'createdBy' && userIdOrCreatedBy ? `createdBy='${userIdOrCreatedBy}' AND ` : ''}${type === 'assignTo' && userIdOrCreatedBy ? `userId='${userIdOrCreatedBy}' AND ` : ''}`;
         // Requête pour les jours actifs
         const activeDaysQuery = `
@@ -93,7 +91,6 @@ function fetchSummaryData(from, to, type, userIdOrCreatedBy) {
     GROUP BY DATE(paymentDate) 
     ORDER BY date ASC
   `;
-        console.log(activeDaysQuery);
         const activeDays = yield prismadb_1.default.$queryRawUnsafe(activeDaysQuery);
         const days = fillMissingDays(activeDays, from, to);
         // Requête pour les transactions
@@ -113,7 +110,6 @@ function fetchSummaryData(from, to, type, userIdOrCreatedBy) {
     GROUP BY 
         t.statusId;
   `;
-        console.log(transactionsQuery);
         const transactions = yield prismadb_1.default.$queryRawUnsafe(transactionsQuery);
         return {
             days,

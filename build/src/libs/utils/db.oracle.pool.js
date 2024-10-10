@@ -10,21 +10,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const db_config_1 = require("../../config/db.config");
+const log_1 = require("./log");
 var oracledb = require('oracledb');
 function getConnection() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             yield oracledb.createPool(db_config_1.dbConfig, (err) => {
                 if (err) {
-                    console.error('Erreur de création du pool de connexions Oracle :', err);
+                    (0, log_1.writeLogEntry)(`Oracle connection pool creation error`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["error", err]);
                     return;
                 }
-                console.log('Pool de connexions Oracle créé avec succès.');
+                (0, log_1.writeLogEntry)(`Oracle connection pool successfully created.`, log_1.LogLevel.INFO, log_1.LogType.DATABASE, ["error", err]);
             });
             return yield oracledb.getConnection();
         }
         catch (err) {
-            console.error('Erreur lors de l\'obtention d\'une connexion :', err);
+            (0, log_1.writeLogEntry)(`Error obtaining an Oracle connection`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["error", err]);
             throw err;
         }
     });
@@ -33,18 +34,17 @@ function executeQuery(connection, query, values) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const result = yield connection.execute(query);
-            console.log('Résultat de la requête :', result);
         }
         catch (err) {
-            console.error('Erreur lors de l\'exécution de la requête :', err);
+            (0, log_1.writeLogEntry)(`Error during query execution`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["query", query, "error", err]);
             throw err;
         }
         finally {
             try {
                 yield connection.close();
             }
-            catch (err) {
-                console.error('Erreur lors de la fermeture de la connexion :', err);
+            catch (error) {
+                (0, log_1.writeLogEntry)(`Database closing connection error`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["query", query, "error", error]);
             }
         }
     });
@@ -56,7 +56,7 @@ function releaseConnection() {
             yield oracledb.getPool().close(0);
         }
         catch (err) {
-            console.error('Erreur lors de la fermeture du pool de connexions :', err);
+            (0, log_1.writeLogEntry)(`Error closing connection pool`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["error", err]);
             throw err;
         }
     });
@@ -71,7 +71,7 @@ function run(query, values) {
             yield executeQuery(connection, query, values);
         }
         catch (err) {
-            console.error('Erreur dans la fonction run :', err);
+            (0, log_1.writeLogEntry)(`Error in run function :`, log_1.LogLevel.ERROR, log_1.LogType.DATABASE, ["error", err, "query", query, "values", values]);
         }
         finally {
             if (connection) {

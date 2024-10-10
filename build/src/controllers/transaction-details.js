@@ -19,6 +19,7 @@ const http_exception_1 = require("../exceptions/http-exception");
 const prismadb_1 = __importDefault(require("../libs/prismadb"));
 const not_found_1 = __importDefault(require("../exceptions/not-found"));
 const unauthorized_1 = __importDefault(require("../exceptions/unauthorized"));
+const client_1 = require("@prisma/client");
 const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = req.params.id;
     if (!id)
@@ -66,6 +67,17 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     res.status(201).json({
         success: true,
         message: "Bulk request details created successfully",
+    });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} added in transaction ID: ${id} new invoices : ${JSON.stringify(data)}`,
+            endpoint: 'transactions-details',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.bulkCreate = bulkCreate;
@@ -116,12 +128,30 @@ const bulkUpdate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         success: true,
         message: "successfully Bulk updated request details",
     });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} updated in transaction ID: ${id} the invoices: ${JSON.stringify(data)}`,
+            endpoint: '/transactions-details',
+            source: client_1.SourceType.USER
+        },
+    });
 });
 exports.bulkUpdate = bulkUpdate;
 const remove = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const { id } = req.params;
     if (!id)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
+    // check if the user id is valid
+    const user = yield prismadb_1.default.user.findUnique({
+        where: { id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }
+    });
+    if (!user)
+        throw new unauthorized_1.default("Unauthorize ressource due", http_exception_1.ErrorCode.UNAUTHORIZE);
     const requestDetail = yield prismadb_1.default.transactionDetail.findUnique({
         where: { id: id },
     });
@@ -131,9 +161,20 @@ const remove = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     yield prismadb_1.default.transactionDetail.delete({
         where: { id: id }
     });
-    return res.status(200).json({
+    res.status(200).json({
         success: true,
         message: "RequestDetail deleted successfully",
+    });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} delete in transaction ID: ${id} the invoice: ${JSON.stringify(requestDetail)}`,
+            endpoint: '/transactions-details',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.remove = remove;
@@ -160,6 +201,17 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     res.status(201).json({
         success: true,
         data: request,
+    });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} create in transaction ID: ${requestId} new invoice: ${JSON.stringify(data)}`,
+            endpoint: '/transactions-details',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.create = create;
@@ -256,9 +308,20 @@ const softDelete = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         }
     });
     yield redis_1.redis.del(id);
-    return res.status(200).json({
+    res.status(200).json({
         success: true,
         message: "Request soft deleted successfully",
+    });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} remove the invoice: ${id}`,
+            endpoint: '/transactions-details',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.softDelete = softDelete;
@@ -266,9 +329,16 @@ exports.softDelete = softDelete;
 //            SOFT BULK DELETE REQUEST
 //---------------------------------------------------------
 const bulkSolftDelete = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const { id } = req.params;
     if (!id)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
+    // get the user information
+    const user = yield prismadb_1.default.user.findFirst({
+        where: { id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id },
+    });
+    if (!user)
+        throw new unauthorized_1.default("Unauthorize ressource", http_exception_1.ErrorCode.UNAUTHORIZE);
     const request = yield prismadb_1.default.transactionDetail.findUnique({
         where: { id: id },
     });
@@ -278,9 +348,20 @@ const bulkSolftDelete = (req, res, next) => __awaiter(void 0, void 0, void 0, fu
         where: { id: id }
     });
     yield redis_1.redis.del(id);
-    return res.status(200).json({
+    res.status(200).json({
         success: true,
         message: "Request deleted successfully",
+    });
+    // Audit entry for tracking purpose
+    yield prismadb_1.default.audit.create({
+        data: {
+            userId: user.id,
+            ipAddress: req.ip,
+            action: client_1.EventType.TRANSACTION,
+            details: `User : ${user.email} remove in transaction ID: ${request.transactionId} the invoice: ${JSON.stringify(request)}`,
+            endpoint: '/transactions-details',
+            source: client_1.SourceType.USER
+        },
     });
 });
 exports.bulkSolftDelete = bulkSolftDelete;
