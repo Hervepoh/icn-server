@@ -13,6 +13,7 @@ import summaryRoutes from "./summary";
 import notificationRoutes from "./notification";
 import statusRoutes from "./status";
 import unpaidOrPaidRoutes from "./unpaidOrPaid";
+import customersReferenceRoutes from "./customerReference";
 
 const rootRouter:Router = Router();
 
@@ -31,6 +32,6 @@ rootRouter.use('/search-unpaid' , unpaidRoutes);
 rootRouter.use('/search-paid-or-unpaid' , unpaidOrPaidRoutes);
 rootRouter.use('/icn' , interncreditRoutes);
 rootRouter.use('/notifications' , notificationRoutes);
-
+rootRouter.use('/customers-reference' , customersReferenceRoutes);
 
 export default rootRouter;

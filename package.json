@@ -8,7 +8,7 @@
     "build": "npx tsc && npm run copy-ejs",
     "copy-ejs": "copyfiles -u 1 src/**/*.ejs build/src",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "ts-node ./prisma/seed.ts"
+    "seed": "ts-node ./prisma/seed/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +25,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.15",
     "copyfiles": "^2.4.1",
+    "csv-parser": "^3.0.0",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2"

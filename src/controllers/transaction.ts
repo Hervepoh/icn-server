@@ -334,8 +334,8 @@ export const update =
           where: { id: id }
         });
 
-        if (!request?.reference && request?.paymentDate) {
-          const refId = await genereteICNRef(request.paymentDate);
+        if (!request?.reference && request?.paymentDate && request?.bankId) {
+          const refId = await generateICNRef(request.paymentDate, request.bankId);
           data.reference = refId.reference
         }
         notificationType = "publish"
@@ -531,9 +531,9 @@ export const bulkCreate =
         where: { id: mode }
       });
       if (!payMode) throw new ConfigurationException("Payment mode not found, please contact adminstrator", ErrorCode.BAD_CONFIGURATION);
-  
+
       // Generate a unique reference if it's not provided
-      // const uniqueReference = await genereteICNRef(parseDMY(payment_date));
+      // const uniqueReference = await generateICNRef(parseDMY(payment_date));
       const data = transactionSchema.parse({
         // reference: uniqueReference.reference,
         name,
@@ -635,17 +635,27 @@ const revalidateService = async (key: string) => {
 /**
  * The function `generateICNRef` generates a new reference based on the current date and the last
  * reference in the database collection.
- * @param {Date} date - The `genereteICNRef` function is designed to generate a new reference based on
+ * @param {Date} date - The `generateICNRef` function is designed to generate a new reference based on
  * the provided date. It retrieves the last reference from a database collection, extracts the sequence
  * number from it, increments the sequence number, and creates a new reference using the current month
  * and year along with the updated sequence
- * @returns The `genereteICNRef` function returns a new ICN reference number that is generated based on
+ * @returns The `generateICNRef` function returns a new ICN reference number that is generated based on
  * the current date and the last reference number stored in the database. The function first retrieves
  * the last reference number from the database, then calculates a new reference number by incrementing
  * the sequence number part of the last reference number. If there is no last reference number found,
  * it generates a new reference number
  */
-async function genereteICNRef(date: Date) {
+async function generateICNRef(date: Date, bankId: string) {
+
+  // Get the bank's code using the bankId
+  const bank = await prismaClient.bank.findUnique({
+    where: { id: bankId },
+    select: { code: true }
+  });
+
+  if (!bank || !bank.code) {
+    throw new Error("Bank not found or bank code is missing.");
+  }
 
   // Get last reference in the references database collection
   const lastReference = await prismaClient.reference.findFirst({
@@ -654,12 +664,12 @@ async function genereteICNRef(date: Date) {
 
   let newReference: string;
   if (lastReference) {
-    // Extraction du numéro de séquence à partir de la dernière référence
-    const lastSequenceNumber = parseInt(lastReference.reference.slice(4));
-    newReference = `${getCurrentMonthYear(date.toDateString())}${String(lastSequenceNumber + 1).padStart(6, '0')}`;
+    // Extract sequence number from last reference
+    const lastSequenceNumber = parseInt(lastReference.reference.slice(4, -2)); // Exclude last 2 characters (bank code)
+    newReference = `${getCurrentMonthYear(date.toDateString())}${String(lastSequenceNumber + 1).padStart(4, '0')}${bank.code}`;
   } else {
-    // Première référence
-    newReference = `${getCurrentMonthYear(date.toDateString())}000001`;
+    // First reference
+    newReference = `${getCurrentMonthYear(date.toDateString())}0001${bank.code}`;
   }
 
   return await prismaClient.reference.create({ data: { reference: newReference } });
@@ -767,8 +777,8 @@ async function notification(type: notificationType, transaction: any, user: any)
       // Handle treat case if needed
       break;
     default:
-      console.log("Notification type",type) // TODO ajouter le cas in process (Personne a notifié ??)
-      //throw new Error("Invalid notification type");
+      console.log("Notification type", type) // TODO ajouter le cas in process (Personne a notifié ??)
+    //throw new Error("Invalid notification type");
   }
 
 

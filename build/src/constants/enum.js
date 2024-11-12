@@ -25,4 +25,5 @@ var serviceType;
     serviceType["ROLE"] = "ROLE";
     serviceType["PERMISSION"] = "PERMISSION";
     serviceType["NOTIFICATION"] = "NOTIFICATION";
+    serviceType["CUSTOMERSREFERENCES"] = "CUSTOMERS-REFERENCES";
 })(serviceType || (exports.serviceType = serviceType = {}));

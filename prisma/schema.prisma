@@ -16,6 +16,7 @@ datasource db {
 model Bank {
   id           String        @id @default(uuid()) @db.Char(36)
   name         String        @db.VarChar(255)
+  code         String?
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
   Transactions Transaction[]
@@ -259,4 +260,29 @@ model JobLock {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("job_locks")
+}
+
+model CustomerReference {
+  id          String @id @default(uuid()) @db.Char(36)
+  region      String @db.Char(50)
+  agency      String @db.Char(50)
+  service_no  String
+  client_code String
+  status      String
+  client      String
+  category    String
+  supply_ref  String
+  meter_no    String
+  contact     String?
+  userId      String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?
+  deleted   Boolean   @default(false)
+  deletedAt DateTime?
+  deletedBy String?
+
+  @@map("customers_reference")
 }

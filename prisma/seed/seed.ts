@@ -1,18 +1,34 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { serviceType } from '../src/constants/enum';
-import { SALT_ROUNDS } from '../src/secrets';
-import { redis } from '../src/libs/utils/redis';
+import { serviceType } from '../../src/constants/enum';
+import { SALT_ROUNDS } from '../../src/secrets';
+import { redis } from '../../src/libs/utils/redis';
+import { importCsvToDatabase } from './seed-referentiel';
 
 const prisma = new PrismaClient();
 
 //Liste des services tracker par redis
 
 // Liste des moyens de paiement
-const paymentModes = ['CHECQUE', 'COMPENSATION', 'VIREMENT'];
+const paymentModes = ['CHECQUE', 'COMPENSATION', 'VIREMENT', 'TRAITE', 'VERSEMENT ESPECE', 'MEMO'];
 
 // Liste des banques
-const banks = ['UBA', 'SGC', 'BGFI', 'NFC', 'BICEC', 'BEAC'];
+const banks = [
+  { name: 'AFRILAND', code: '01' },
+  { name: 'BICEC', code: '11' },
+  { name: 'SCB', code: '12' },
+  { name: 'SGC', code: '13' },
+  { name: 'CITIBANK', code: '14' },
+  { name: 'CBC', code: '15' },
+  { name: 'STANDARD', code: '16' },
+  { name: 'ECOBANK', code: '17' },
+  { name: 'UBA', code: '18' },
+  { name: 'BANQUE ATLANTIQUE', code: '19' },
+  { name: 'MEMO/COMPENSATION', code: '20' },
+  { name: 'BGFI', code: '21' },
+  { name: 'CCA', code: '22' },
+  { name: 'UBC', code: '23' }
+];
 
 // Liste des rôles
 const status = [
@@ -38,7 +54,7 @@ const permissions = [
 const customPermissions = [
   "ICN-NEXTCODE", 'ICN-NEXTDEMATERIALIZATION', "ICN-GROUPES", "ICN-DOCUMENTS",
   "USER-READNOTIFICATION", "USER-ROLE", "USER-ADDROLE", "USER-REMOVEROLE", "USER-NOTIFICATION",
-  "TRANSACTION-PUBLISH","TRANSACTION-VALIDATE","TRANSACTION-ASSIGN","TRANSACTION-COMMERCIAL",
+  "TRANSACTION-PUBLISH", "TRANSACTION-VALIDATE", "TRANSACTION-ASSIGN", "TRANSACTION-COMMERCIAL",
   "SUMMARY-README"
 ];
 // Fin Liste des permissions
@@ -46,7 +62,7 @@ const customPermissions = [
 
 // Debut Listing Permissions spécifiques a attribuer par pofil
 const specificPermissionForCOMMERCIAL = [
-  "TRANSACTION-READ","TRANSACTION-COMMERCIAL",
+  "TRANSACTION-READ", "TRANSACTION-COMMERCIAL",
   "TRANSACTIONDETAIL-READ", "TRANSACTIONDETAIL-WRITE", "TRANSACTIONDETAIL-BULKCREATE", "TRANSACTIONDETAIL-BULKDELETE",
   "SUMMARY-README",
   "BANK-READ",
@@ -56,8 +72,8 @@ const specificPermissionForCOMMERCIAL = [
   "ROLE-READ",
   "USER-READNOTIFICATION"
 ];
-const specificPermissionForAssignator = ["SUMMARY-READ","TRANSACTION-READ", "TRANSACTION-ASSIGN" ,"USER-SEARCH"];
-const specificPermissionForValidation = ["SUMMARY-READ","TRANSACTION-READ", "TRANSACTION-VALIDATE"];
+const specificPermissionForAssignator = ["SUMMARY-READ", "TRANSACTION-READ", "TRANSACTION-ASSIGN", "USER-SEARCH"];
+const specificPermissionForValidation = ["SUMMARY-READ", "TRANSACTION-READ", "TRANSACTION-VALIDATE"];
 const specificPermissionForUSER = [
   "TRANSACTION-READ", "TRANSACTION-WRITE", "TRANSACTION-PUBLISH", "TRANSACTION-BULKCREATE",
   "SUMMARY-README",
@@ -131,6 +147,7 @@ async function main() {
   // Vider les tables
 
   await prisma.audit.deleteMany({});
+  await prisma.reference.deleteMany({});
   await prisma.notification.deleteMany({});
   await prisma.userRole.deleteMany({});
   await prisma.rolePermission.deleteMany({});
@@ -142,6 +159,7 @@ async function main() {
   await prisma.paymentMode.deleteMany({});
   await prisma.status.deleteMany({});
   await prisma.bank.deleteMany({});
+  await prisma.customerReference.deleteMany({});
   await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
   await prisma.$executeRaw`TRUNCATE TABLE status`;
   await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
@@ -151,7 +169,10 @@ async function main() {
   // Créer les Banques
   const bankPromises = banks.map(item =>
     prisma.bank.create({
-      data: { name: item },
+      data: {
+        name: item.name,
+        code: item.code
+      },
     })
   );
   const createdBanks = await Promise.all(bankPromises);
@@ -417,19 +438,23 @@ async function main() {
   }
 
 
-
-
   // Créer les status
   const createdStatus = [];
-    
+
   for (const item of status) {
-      const created = await prisma.status.create({
-          data: { name: item },
-      });
-      createdStatus.push(created);
+    const created = await prisma.status.create({
+      data: { name: item },
+    });
+    createdStatus.push(created);
   }
   console.log(`Created status: ${createdStatus.map(s => s.name).join(', ')}`);
 
+  
+  // Importion du reférentiel client 
+  // Chemin vers le fichier CSV
+  const filePath = '/home/hervengando/clients.csv';
+  // Importation 
+  await importCsvToDatabase(filePath);
 
   console.log(`##########################`);
   console.log(`##   Seeding finished.  ##`);
