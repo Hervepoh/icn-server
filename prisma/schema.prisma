@@ -1,11 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
 }
 
 datasource db {
@@ -54,21 +48,29 @@ model Reference {
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Char(36) // Use CHAR(36) for UUID
-  name      String
-  email     String   @unique
-  password  String
-  ldap      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                        String                @id @default(uuid()) @db.Char(36)
+  name                      String
+  email                     String                @unique
+  password                  String
+  ldap                      Boolean               @default(false)
+  unitId                    String?               @db.Char(36)
+  segmentId                 String?               @db.Char(36)
+  createdAt                 DateTime              @default(now()) @map("created_at")
+  updatedAt                 DateTime              @updatedAt @map("updated_at")
+  Audit                     Audit[]
+  transactionDetails        TransactionDetail[]
+  assignedTransactions      Transaction[]         @relation("TransactionAssignator")
+  createdTransactions       Transaction[]         @relation("TransactionCreatedBy")
+  modifiedTransactions      Transaction[]         @relation("TransactionModifiedBy")
+  transactions              Transaction[]         @relation("TransactionOwner")
+  validatedTransactions     Transaction[]         @relation("TransactionValidator")
+  temporaryUserTransactions TransactionTempUser[]
+  roles                     UserRole[]
+  segment                   Segment?              @relation(fields: [segmentId], references: [id])
+  unit                      Unit?                 @relation(fields: [unitId], references: [id])
 
-  transactions          Transaction[] @relation("TransactionInitiator")
-  roles                 UserRole[]
-  Audit                 Audit[]
-  validatedTransactions Transaction[] @relation("TransactionValidator") // Transactions validées par l'utilisateur
-  createdTransactions   Transaction[] @relation("TransactionCreatedBy") // Transactions créées par l'utilisateur
-  modifiedTransactions  Transaction[] @relation("TransactionModifiedBy") // Transactions modifiées par l'utilisateur
-
+  @@index([segmentId], map: "users_segmentId_fkey")
+  @@index([unitId], map: "users_unitId_fkey")
   @@map("users")
 }
 
@@ -86,10 +88,11 @@ model Role {
 model UserRole {
   userId String
   roleId String
-  user   User   @relation(fields: [userId], references: [id])
   role   Role   @relation(fields: [roleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
-  @@id([userId, roleId]) // Composite primary key
+  @@id([userId, roleId])
+  @@index([roleId], map: "user_roles_roleId_fkey")
   @@map("user_roles")
 }
 
@@ -106,75 +109,101 @@ model Permission {
 model RolePermission {
   roleId       String
   permissionId String
-  role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
 
-  @@id([roleId, permissionId]) // Composite primary key
+  @@id([roleId, permissionId])
+  @@index([permissionId], map: "role_permissions_permissionId_fkey")
   @@map("role_permissions")
 }
 
 model Transaction {
-  id               String    @id @default(uuid()) @db.Char(36)
-  reference        String?   @unique
-  userId           String    @db.Char(36) // Référence à User
-  name             String
-  amount           Float
-  bankId           String    @db.Char(36) // Référence à Bank
-  paymentDate      DateTime
-  paymentModeId    String    @db.Char(36) // Référence à PaymentMode
-  statusId         Int       @default(1)
-  validatorId      String?   @db.Char(36) // Référence à User (Validateur)
-  validatedAt      DateTime?
-  refusal          Boolean   @default(false)
-  reasonForRefusal String?
-  createdBy        String?
-  modifiedBy       String?
-  deleted          Boolean   @default(false)
-  deletedBy        String?
-  deletedAt        DateTime?
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id                        String                @id @default(uuid()) @db.Char(36)
+  reference                 String?               @unique
+  name                      String
+  amount                    Float
+  bankId                    String                @db.Char(36)
+  paymentDate               DateTime
+  paymentModeId             String                @db.Char(36)
+  description               String?               @db.VarChar(255)
+  statusId                  Int                   @default(1)
+  validatorId               String?               @db.Char(36)
+  validatedAt               DateTime?
+  assignBy                  String?               @db.Char(36)
+  assignAt                  DateTime?
+  refusal                   Boolean               @default(false)
+  reasonForRefusal          String?
+  userId                    String?               @db.Char(36)
+  segmentId                 String?               @db.Char(36)
+  unitId                    String?               @db.Char(36)
+  regionId                  String?               @db.Char(36)
+  createdBy                 String?
+  modifiedBy                String?
+  deleted                   Boolean               @default(false)
+  deletedBy                 String?
+  deletedAt                 DateTime?
+  createdAt                 DateTime              @default(now()) @map("created_at")
+  updatedAt                 DateTime              @updatedAt @map("updated_at")
+  transactionDetails        TransactionDetail[]
+  assignator                User?                 @relation("TransactionAssignator", fields: [assignBy], references: [id])
+  bank                      Bank                  @relation(fields: [bankId], references: [id])
+  creator                   User?                 @relation("TransactionCreatedBy", fields: [createdBy], references: [id])
+  modifier                  User?                 @relation("TransactionModifiedBy", fields: [modifiedBy], references: [id])
+  paymentMode               PaymentMode           @relation(fields: [paymentModeId], references: [id])
+  region                    Region?               @relation(fields: [regionId], references: [id])
+  segment                   Segment?              @relation(fields: [segmentId], references: [id])
+  status                    Status                @relation(fields: [statusId], references: [id])
+  unit                      Unit?                 @relation(fields: [unitId], references: [id])
+  user                      User?                 @relation("TransactionOwner", fields: [userId], references: [id])
+  validator                 User?                 @relation("TransactionValidator", fields: [validatorId], references: [id])
+  userTemporaryTransactions TransactionTempUser[]
 
-  // Relations
-  status            Status              @relation(fields: [statusId], references: [id])
-  user              User                @relation("TransactionInitiator", fields: [userId], references: [id])
-  bank              Bank                @relation(fields: [bankId], references: [id])
-  paymentMode       PaymentMode         @relation(fields: [paymentModeId], references: [id])
-  validator         User?               @relation("TransactionValidator", fields: [validatorId], references: [id]) // Validateur
-  creator           User?               @relation("TransactionCreatedBy", fields: [createdBy], references: [id]) // Créateur
-  modifier          User?               @relation("TransactionModifiedBy", fields: [modifiedBy], references: [id]) // Modificateur])
-  TransactionDetail TransactionDetail[]
-
+  @@index([assignBy], map: "transactions_assignBy_fkey")
+  @@index([bankId], map: "transactions_bankId_fkey")
+  @@index([createdBy], map: "transactions_createdBy_fkey")
+  @@index([modifiedBy], map: "transactions_modifiedBy_fkey")
+  @@index([paymentModeId], map: "transactions_paymentModeId_fkey")
+  @@index([regionId], map: "transactions_regionId_fkey")
+  @@index([segmentId], map: "transactions_segmentId_fkey")
+  @@index([statusId], map: "transactions_statusId_fkey")
+  @@index([unitId], map: "transactions_unitId_fkey")
+  @@index([userId], map: "transactions_userId_fkey")
+  @@index([validatorId], map: "transactions_validatorId_fkey")
   @@map("transactions")
 }
 
 model TransactionDetail {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   transactionId String
   contract      String
   invoice       String
   name          String
+  date          String
   amountUnpaid  Float
   amountTopaid  Float
-  selected      Boolean   @default(true)
-  deleted       Boolean   @default(false)
+  selected      Boolean     @default(true)
+  deleted       Boolean     @default(false)
   deletedAt     DateTime?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  userId        String      @db.Char(36)
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
 
-  transaction Transaction @relation(fields: [transactionId], references: [id])
-
+  @@index([transactionId], map: "transaction_details_transactionId_fkey")
+  @@index([userId], map: "transaction_details_userId_fkey")
   @@map("transaction_details")
 }
 
-enum EventIntegrationType {
-  WAIT_GENERATION
-  GENERATED
-  PENDING
-  ONGOING
-  ONGOING_WITH_ISSUE
-  INTEGRATED
-  CANCELED
+model TransactionTempUser {
+  transactionId String
+  userId        String
+  transactions  Transaction @relation(fields: [transactionId], references: [id])
+  users         User        @relation(fields: [userId], references: [id])
+
+  @@id([transactionId, userId])
+  @@index([userId], map: "transactions_temp_users_userId_fkey")
+  @@map("transactions_temp_users")
 }
 
 model IntegrationDocument {
@@ -201,16 +230,16 @@ model IntegrationDocument {
   @@map("integration_documents")
 }
 
-enum EventType {
-  LOGIN
-  LOGOUT
-  TRANSACTION
+model IntegrationDocumentHistory {
+  id                        Int                  @id @default(autoincrement())
+  IntegrationDocument       Int
+  reference                 String
+  integration_status        EventIntegrationType
+  createdAt                 DateTime             @default(now()) @map("created_at")
+
+  @@map("integration_documents_history")
 }
 
-enum SourceType {
-  USER
-  SYSTEM
-}
 
 model Audit {
   id        Int        @id @default(autoincrement())
@@ -221,32 +250,24 @@ model Audit {
   endpoint  String
   createdAt DateTime   @default(now()) @map("created_at")
   source    SourceType
+  user      User?      @relation(fields: [userId], references: [id])
 
-  user User? @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "audits_userId_fkey")
   @@map("audits")
-}
-
-enum NotificationMethod {
-  EMAIL
-  SMS
-  WHATSAPP
-  INTERN
-  AVAILABLE
 }
 
 model Notification {
   id        Int                @id @default(autoincrement())
-  userId    String? // Peut être nul si personne n'a pas encore de compte (register,activate)
-  email     String? // Peut être nul si vous n'envoyez que WhatsApp ou sms
-  phone     String? // Numéro de téléphone pour WhatsApp & sms, peut être nul si vous n'envoyez que par e-mail
+  userId    String?
+  email     String?
+  phone     String?
   method    NotificationMethod
   subject   String
   message   String             @db.VarChar(5000)
   template  String?
   status    String             @default("unread")
-  sent      Boolean            @default(false) // Indique si la notification a été envoyée
-  sentAt    DateTime? // Date d'envoi, peut être nul si pas encore envoyé
+  sent      Boolean            @default(false)
+  sentAt    DateTime?
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
 
@@ -263,9 +284,9 @@ model JobLock {
 }
 
 model CustomerReference {
-  id          String @id @default(uuid()) @db.Char(36)
-  region      String @db.Char(50)
-  agency      String @db.Char(50)
+  id          String    @id @default(uuid()) @db.Char(36)
+  region      String    @db.Char(50)
+  agency      String    @db.Char(50)
   service_no  String
   client_code String
   status      String
@@ -275,14 +296,78 @@ model CustomerReference {
   meter_no    String
   contact     String?
   userId      String?
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String?
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  updatedBy String?
-  deleted   Boolean   @default(false)
-  deletedAt DateTime?
-  deletedBy String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  createdBy   String?
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  updatedBy   String?
+  deleted     Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
 
   @@map("customers_reference")
+}
+
+model Segment {
+  id          String        @id @default(uuid()) @db.Char(36)
+  name        String        @unique
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  Transaction Transaction[]
+  User        User[]
+
+  @@map("segments")
+}
+
+model Unit {
+  id           String        @id @default(uuid()) @db.Char(36)
+  name         String        @unique
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  regionId     String        @db.Char(36)
+  transactions Transaction[]
+  region       Region        @relation(fields: [regionId], references: [id])
+  users        User[]
+
+  @@index([regionId], map: "units_regionId_fkey")
+  @@map("units")
+}
+
+model Region {
+  id           String        @id @default(uuid()) @db.Char(36)
+  name         String        @unique
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  transactions Transaction[]
+  units        Unit[]
+
+  @@map("regions")
+}
+
+enum EventIntegrationType {
+  WAIT_GENERATION
+  GENERATED
+  PENDING
+  ONGOING
+  ONGOING_WITH_ISSUE
+  INTEGRATED
+  CANCELED
+}
+
+enum EventType {
+  LOGIN
+  LOGOUT
+  TRANSACTION
+}
+
+enum SourceType {
+  USER
+  SYSTEM
+}
+
+enum NotificationMethod {
+  EMAIL
+  SMS
+  WHATSAPP
+  INTERN
+  AVAILABLE
 }

@@ -23,7 +23,15 @@ NPM_RUN = $(NPM) run
 NPM_BUILD = $(NPM) run build
 NPM_DEV = $(NPM) run dev
 NPM_WATCH = $(NPM) run watch
+NPM_START = $(NPM) run start
 #------------#
+
+#---PM2 -----#
+PM2 = pm2
+PM2_L = pm2 ls
+PM2_S = pm2 start npm --name "icn-server" -- run start
+#------------#
+
 
 ## === 🆘  HELP ==================================================
 help: ## Show this help.

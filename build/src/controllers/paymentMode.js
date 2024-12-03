@@ -41,7 +41,7 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.create = create;
 //-----------------------------------------------------------------------------
-//             GET ALL BANK :  get /paymentModes
+//             GET ALL :  get /paymentModes
 //-----------------------------------------------------------------------------
 // Handling the process GET paymentModes 
 const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -60,7 +60,7 @@ const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.get = get;
 //-----------------------------------------------------------------------------
-//             GET BANK BY ID : get /paymentModes/:id
+//             GET BY ID : get /paymentModes/:id
 //-----------------------------------------------------------------------------
 // Handling the process GET paymentMode by ID 
 const getById = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -79,7 +79,7 @@ const getById = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
 });
 exports.getById = getById;
 //-----------------------------------------------------------------------------
-//             UPDATE BANK : put  /paymentModes/:id
+//             UPDATE : put  /paymentModes/:id
 //-----------------------------------------------------------------------------
 // Handling Update paymentMode process
 const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -99,7 +99,7 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.update = update;
 //-----------------------------------------------------------------------------
-//             DELETE BANK : delete  /paymentModes/:id
+//             DELETE : delete  /paymentModes/:id
 //-----------------------------------------------------------------------------
 // Handling delete paymentMode process
 const remove = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -156,7 +156,7 @@ exports.bulkRemove = bulkRemove;
 const revalidateService = (key) => __awaiter(void 0, void 0, void 0, function* () {
     const data = yield prismadb_1.default.paymentMode.findMany({
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
     yield redis_1.redis.set(key, JSON.stringify(data));

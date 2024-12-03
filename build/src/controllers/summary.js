@@ -41,6 +41,24 @@ const summary = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
         // Gérer le cas où type n'est pas valide
         currentPeriod = yield fetchSummaryData(from, to);
     }
+    const group_transactions = yield fetchSummaryGobalData(from, to);
+    const group_transactions_by_region = group_transactions.per_region.map((item) => ({
+        region: item.region,
+        status: item.status,
+        number: typeof item.number === 'bigint' ? Number(item.number) : item.number,
+        amount: typeof item.amount === 'bigint' ? Number(item.amount) : item.amount,
+    }));
+    const group_transactions_by_unit = group_transactions.per_unit.map((item) => ({
+        region: item.region,
+        unit: item.unit,
+        status: item.status,
+        number: typeof item.number === 'bigint' ? Number(item.number) : item.number,
+        amount: typeof item.amount === 'bigint' ? Number(item.amount) : item.amount,
+    }));
+    const group_transactions_region = group_transactions.region.map((item) => ({
+        name: item.region,
+        value: typeof item.number === 'bigint' ? Number(item.number) : item.number,
+    }));
     //const lastPeriod = await fetchSummaryData(from, to);
     // Convert BigInt to Number
     const formattedDaysData = currentPeriod.days.map(item => ({
@@ -56,7 +74,6 @@ const summary = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
         acc[curr.status] = curr.value;
         return acc;
     }, {});
-    ;
     const formattedCategoriesData = currentPeriod.transactions.map((item) => ({
         name: item.status,
         value: typeof item.number === 'bigint' ? Number(item.number) : item.number,
@@ -65,8 +82,13 @@ const summary = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
         success: true,
         data: {
             days: formattedDaysData,
+            group: {
+                by_region: group_transactions_by_region,
+                by_unit: group_transactions_by_unit,
+            },
             transactions: { nber: formattedTransactionsData },
             categories: { nber: formattedCategoriesData },
+            regions: group_transactions_region,
             dateRangeLabel: (0, formatter_1.formatDateRange)({ from, to })
         }
     });
@@ -114,6 +136,79 @@ function fetchSummaryData(from, to, type, userIdOrCreatedBy) {
         return {
             days,
             transactions,
+        };
+    });
+}
+function fetchSummaryGobalData(from, to) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const fromDate = (0, date_fns_1.format)(from, "yyyy-MM-dd");
+        const toDate = (0, date_fns_1.format)(to, "yyyy-MM-dd");
+        const region_Query = `
+  SELECT 
+    r.name as region,
+    COUNT(*) AS number,
+    SUM(t.amount) AS amount
+  FROM 
+    transactions t
+  JOIN 
+      regions r ON t.regionId = r.id
+  JOIN 
+      status s ON t.statusId = s.id
+  WHERE
+      t.deleted = 0 AND
+      t.statusId <> 2 AND 
+      t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
+  GROUP BY 
+      t.regionId;
+`;
+        const region = yield prismadb_1.default.$queryRawUnsafe(region_Query);
+        const transactions_per_region_Query = `
+  SELECT 
+    r.name as region,
+    s.name AS status, 
+    COUNT(*) AS number,
+    SUM(t.amount) AS amount
+  FROM 
+    transactions t
+  JOIN 
+      regions r ON t.regionId = r.id
+  JOIN 
+      status s ON t.statusId = s.id
+  WHERE
+      t.deleted = 0 AND
+      t.statusId <> 2 AND 
+      t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
+  GROUP BY 
+      t.regionId,t.statusId;
+`;
+        const per_region = yield prismadb_1.default.$queryRawUnsafe(transactions_per_region_Query);
+        const transactions_per_unit_Query = `
+  SELECT 
+    r.name as region,
+    u.name as unit,
+    s.name AS status, 
+    COUNT(*) AS number,
+    SUM(t.amount) AS amount
+  FROM 
+    transactions t
+  JOIN 
+      units u ON t.unitId = u.id
+  JOIN 
+      regions r ON t.regionId = r.id
+  JOIN 
+      status s ON t.statusId = s.id
+  WHERE
+      t.deleted = 0 AND
+      t.statusId <> 2 AND 
+      t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
+  GROUP BY 
+     r.name, u.name, s.name;
+`;
+        const per_unit = yield prismadb_1.default.$queryRawUnsafe(transactions_per_unit_Query);
+        return {
+            region,
+            per_region,
+            per_unit
         };
     });
 }

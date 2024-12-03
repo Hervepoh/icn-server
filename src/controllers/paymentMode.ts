@@ -12,7 +12,7 @@ import BadRequestException from '../exceptions/bad-requests';
 const key = 'paymentModes';
 
 //-----------------------------------------------------------------------------
-//             CREATE BANK : post /paymentModes
+//             CREATE : post /paymentModes
 //-----------------------------------------------------------------------------
 
 // IPaymentModeRequest
@@ -43,7 +43,7 @@ export const create =
 
 
 //-----------------------------------------------------------------------------
-//             GET ALL BANK :  get /paymentModes
+//             GET ALL :  get /paymentModes
 //-----------------------------------------------------------------------------
 
 // Handling the process GET paymentModes 
@@ -65,7 +65,7 @@ export const get =
 
 
 //-----------------------------------------------------------------------------
-//             GET BANK BY ID : get /paymentModes/:id
+//             GET BY ID : get /paymentModes/:id
 //-----------------------------------------------------------------------------
 
 // Handling the process GET paymentMode by ID 
@@ -87,7 +87,7 @@ export const getById =
     };
 
 //-----------------------------------------------------------------------------
-//             UPDATE BANK : put  /paymentModes/:id
+//             UPDATE : put  /paymentModes/:id
 //-----------------------------------------------------------------------------
 
 // Handling Update paymentMode process
@@ -112,7 +112,7 @@ export const update =
 
 
 //-----------------------------------------------------------------------------
-//             DELETE BANK : delete  /paymentModes/:id
+//             DELETE : delete  /paymentModes/:id
 //-----------------------------------------------------------------------------
 
 // Handling delete paymentMode process
@@ -132,7 +132,7 @@ export const remove =
 
 
 //-----------------------------------------------------------------------------
-//             BULK-CREATE BANK : post /paymentModes
+//             BULK-CREATE : post /paymentModes
 //-----------------------------------------------------------------------------
 
 // IBulkCreateRequest interface definition
@@ -175,7 +175,7 @@ export const bulkCreate = async (req: Request, res: Response, next: NextFunction
 };
 
 //-----------------------------------------------------------------------------
-//             BULK-DELETE BANK : delete  /paymentModes/:id
+//             BULK-DELETE : delete  /paymentModes/:id
 //-----------------------------------------------------------------------------
 
 // IBulkCreateRequest
@@ -206,7 +206,7 @@ export const bulkRemove = async (req: Request, res: Response, next: NextFunction
 const revalidateService = async (key: string) => {
     const data = await prismaClient.paymentMode.findMany({
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
     await redis.set(key, JSON.stringify(data));

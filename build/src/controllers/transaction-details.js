@@ -21,11 +21,19 @@ const not_found_1 = __importDefault(require("../exceptions/not-found"));
 const unauthorized_1 = __importDefault(require("../exceptions/unauthorized"));
 const client_1 = require("@prisma/client");
 const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const id = req.params.id;
     if (!id)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
+    const user = yield prismadb_1.default.user.findUnique({
+        where: { id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }
+    });
+    if (!user)
+        throw new unauthorized_1.default("Unauthorize ressource due", http_exception_1.ErrorCode.UNAUTHORIZE);
     const datas = yield prismadb_1.default.transactionDetail.findMany({
-        where: { transactionId: id },
+        where: {
+            transactionId: id
+        },
         orderBy: { createdAt: 'desc' }
     });
     return res.status(200).json({
@@ -35,34 +43,40 @@ const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.get = get;
 const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a;
     const id = req.params.id;
     if (!id)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
-    // check if the user id is valid
+    // check if the transaction id is valid
+    const transaction = yield prismadb_1.default.transaction.findUnique({
+        where: { id: id }
+    });
+    if (!transaction)
+        throw new bad_requests_1.default("Bad request params", http_exception_1.ErrorCode.RESSOURCE_NOT_FOUND);
+    // checkif the transaction is in the status pending_commercial_input 
+    if (transaction.statusId !== 6)
+        throw new unauthorized_1.default("Unauthorize ressource", http_exception_1.ErrorCode.UNAUTHORIZE);
     const user = yield prismadb_1.default.user.findUnique({
         where: { id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id }
     });
     if (!user)
-        throw new unauthorized_1.default("Unauthorize ressource due", http_exception_1.ErrorCode.UNAUTHORIZE);
+        throw new unauthorized_1.default("Unauthorize ressource", http_exception_1.ErrorCode.UNAUTHORIZE);
     //TODO: check if the user is the assignee of the record
-    const isAssignTo = yield prismadb_1.default.transaction.findFirst({
-        where: {
-            id: id,
-            userId: (_b = req.user) === null || _b === void 0 ? void 0 : _b.id,
-        }
-    });
-    if (!isAssignTo)
-        throw new unauthorized_1.default("Unauthorize ressource : please contact assignator", http_exception_1.ErrorCode.UNAUTHORIZE);
+    // const isAssignTo = await prismaClient.transaction.findFirst({
+    //   where: {
+    //     id: id,
+    //     userId: req.user?.id,
+    //   }
+    // });
+    // if (!isAssignTo) throw new UnauthorizedException("Unauthorize ressource : please contact assignator", ErrorCode.UNAUTHORIZE);
     let data = req.body;
     if (!Array.isArray(data) || data.length === 0) {
         throw new bad_requests_1.default('Invalid params format', http_exception_1.ErrorCode.INVALID_DATA);
     }
     data = data.map((item) => {
         var _a;
-        return (Object.assign(Object.assign({}, item), { amountUnpaid: parseInt(item.amountUnpaid), amountTopaid: (_a = parseInt(item.amountUnpaid)) !== null && _a !== void 0 ? _a : 0, transactionId: id }));
+        return (Object.assign(Object.assign({}, item), { amountUnpaid: parseInt(item.amountUnpaid), amountTopaid: (_a = parseInt(item.amountUnpaid)) !== null && _a !== void 0 ? _a : 0, transactionId: transaction.id, userId: user.id }));
     });
-    console.log(data);
     yield prismadb_1.default.transactionDetail.createMany({ data: data });
     res.status(201).json({
         success: true,
@@ -74,7 +88,7 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
             userId: user.id,
             ipAddress: req.ip,
             action: client_1.EventType.TRANSACTION,
-            details: `User : ${user.email} added in transaction ID: ${id} new invoices : ${JSON.stringify(data)}`,
+            details: `User : ${user.email} added in transaction ID: ${id} new invoices : }`, // ${JSON.stringify(data)
             endpoint: 'transactions-details',
             source: client_1.SourceType.USER
         },
@@ -115,7 +129,6 @@ const bulkUpdate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     // await prismaClient.transactionDetail.updateMany({
     //   data: data,
     // });
-    console.log("", data, "data");
     yield Promise.all(data.map((item) => __awaiter(void 0, void 0, void 0, function* () {
         yield prismadb_1.default.transactionDetail.updateMany({
             where: {
@@ -185,7 +198,7 @@ exports.remove = remove;
  * If the user is not found, it returns an error with a 401 (Unauthorized) status code.
  */
 const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     const requestId = req.params.id;
     if (!requestId)
         throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
@@ -196,7 +209,7 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     if (!user)
         throw new unauthorized_1.default("Unauthorize ressource", http_exception_1.ErrorCode.UNAUTHORIZE);
     //TODO: check if the user is the assignee of the record
-    const data = Object.assign({}, req.body);
+    const data = Object.assign(Object.assign({}, req.body), { userId: (_b = req.user) === null || _b === void 0 ? void 0 : _b.id });
     const request = yield prismadb_1.default.transactionDetail.create({ data: data });
     res.status(201).json({
         success: true,

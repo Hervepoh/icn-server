@@ -13,11 +13,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUnpaidBillsOnListWithAccount = exports.getUnpaidBillsOnList = exports.getUnpaidBillsByCustomerName = exports.getUnpaidBillsByCustomerRegroupNumber = exports.getUnpaidBillsByContractNumber = exports.getUnpaidBillsByInvoiceNumber = exports.getUnpaidBills = void 0;
+const date_fns_1 = require("date-fns");
 const request_1 = require("../constants/request");
 const formatter_1 = require("../libs/utils/formatter");
 const db_oracle_1 = require("../libs/utils/db.oracle");
-const date_fns_1 = require("date-fns");
-const internal_exception_1 = __importDefault(require("../exceptions/internal-exception"));
+const log_1 = require("../libs/utils/log");
 const http_exception_1 = require("../exceptions/http-exception");
 const bad_requests_1 = __importDefault(require("../exceptions/bad-requests"));
 //---------------------------------------------------------
@@ -73,9 +73,26 @@ const getUnpaidBillsByInvoiceNumber = (req, res, next) => __awaiter(void 0, void
     try {
         // Get Invoice Number from the query params 
         const { value: invoice_number } = req.query;
+        // Validate invoice_number
+        if (!invoice_number) {
+            return res.status(200).json({
+                success: true,
+                bills: [],
+                message: "Invalid invoice is required"
+            });
+        }
+        // Check for characters (allowing only numeric characters)
+        const isValidInvoiceNumber = /^\d+$/.test(invoice_number.toString());
+        if (!isValidInvoiceNumber) {
+            return res.status(200).json({
+                success: false,
+                bills: [],
+                message: 'Invoice number must be numeric and cannot contain special characters'
+            });
+        }
         // Fetch data from the database
         connection = yield (0, db_oracle_1.getConnection)();
-        const result = yield connection.execute(request_1.sqlQuery.unpaid_bills_by_invoice_number, [invoice_number]);
+        const result = yield connection.execute(request_1.sqlQuery.unpaid_bills_by_invoice_number, [invoice_number.toString().trim()]);
         // send the response
         res.status(200).json({
             success: true,
@@ -84,7 +101,14 @@ const getUnpaidBillsByInvoiceNumber = (req, res, next) => __awaiter(void 0, void
     }
     catch (error) {
         // Catch the error and return and error respons
-        throw new internal_exception_1.default(error.message, error, http_exception_1.ErrorCode.INTERNAL_EXCEPTION);
+        (0, log_1.writeLogEntry)('Internal error:', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, error.message);
+        console.log("UNPAID-INVOICE", error);
+        return res.status(200).json({
+            success: false,
+            bills: [],
+            message: 'Internal error'
+        });
+        // throw new InternalException(error.message, error, ErrorCode.INTERNAL_EXCEPTION);
     }
     finally {
         // close the connection to the database
@@ -101,17 +125,32 @@ const getUnpaidBillsByContractNumber = (req, res, next) => __awaiter(void 0, voi
     var _a, _b;
     // Get date param from query parameters
     const { value: contract_number, from: FromDate, to: ToDate } = req.query;
-    // TODO :  Define the contraint due to the period 
-    if ((0, formatter_1.isEmpty)(contract_number) || (0, formatter_1.isEmpty)(FromDate) || (0, formatter_1.isEmpty)(ToDate)) {
-        throw new bad_requests_1.default("Invalid parameters", http_exception_1.ErrorCode.INVALID_DATA);
-    }
     if (!FromDate || !ToDate) {
-        throw new bad_requests_1.default("Invalid parameters", http_exception_1.ErrorCode.INVALID_DATA);
+        return res.status(200).json({
+            success: true,
+            bills: [],
+            message: "You must provide a period"
+        });
+    }
+    if (!contract_number) {
+        return res.status(200).json({
+            success: true,
+            bills: [],
+            message: "Contract number is required"
+        });
+    }
+    const isValidContractNumber = /^\d+$/.test(contract_number.toString());
+    if (!isValidContractNumber) {
+        return res.status(200).json({
+            success: false,
+            bills: [],
+            message: 'Contract number must be numeric and cannot contain special characters'
+        });
     }
     try {
         // Fetch data from the database
         const result = yield (0, db_oracle_1.executeQuery)(request_1.sqlQuery.unpaid_bills_by_contract_number, [
-            contract_number,
+            contract_number.toString().trim(),
             (0, date_fns_1.format)((_a = FromDate.toString()) !== null && _a !== void 0 ? _a : new Date(), "dd/MM/yyyy"),
             (0, date_fns_1.format)((_b = ToDate.toString()) !== null && _b !== void 0 ? _b : new Date(), "dd/MM/yyyy")
         ]); // send the response
@@ -121,9 +160,13 @@ const getUnpaidBillsByContractNumber = (req, res, next) => __awaiter(void 0, voi
         });
     }
     catch (error) {
-        return res.status(500).json({
+        // Catch the error and return and error respons
+        (0, log_1.writeLogEntry)('Internal error:', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, error);
+        console.log("UNPAID-CONTRACT", error);
+        return res.status(200).json({
             success: false,
-            message: "An error in getUnpaidBillsByContractNumber"
+            bills: [],
+            message: 'Internal error'
         });
     }
 });
@@ -132,27 +175,42 @@ exports.getUnpaidBillsByContractNumber = getUnpaidBillsByContractNumber;
 //              get all Unpaid Bills By CustomerRegroup Number 
 //---------------------------------------------------------
 const getUnpaidBillsByCustomerRegroupNumber = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const { value, from: FromDate, to: ToDate } = req.query;
-    // TODO :  Define the contraint due to the period 
-    if ((0, formatter_1.isEmpty)(value) || (0, formatter_1.isEmpty)(FromDate) || (0, formatter_1.isEmpty)(ToDate)) {
-        throw new bad_requests_1.default("Invalid parameters", http_exception_1.ErrorCode.INVALID_DATA);
-    }
     if (!FromDate || !ToDate) {
-        throw new bad_requests_1.default("Invalid parameters", http_exception_1.ErrorCode.INVALID_DATA);
+        return res.status(200).json({
+            success: true,
+            bills: [],
+            message: "You must provide a period"
+        });
+    }
+    if (!value) {
+        return res.status(200).json({
+            success: true,
+            bills: [],
+            message: "Customer Regroup number is required"
+        });
     }
     // Fetch data from the database
     try {
         const result = yield (0, db_oracle_1.executeQuery)(request_1.sqlQuery.unpaid_bills_by_customer_regroup_number, [
-            value, FromDate.toString(), ToDate.toString()
+            value.toString().trim(),
+            (0, date_fns_1.format)((_a = FromDate.toString()) !== null && _a !== void 0 ? _a : new Date(), "dd/MM/yyyy"),
+            (0, date_fns_1.format)((_b = ToDate.toString()) !== null && _b !== void 0 ? _b : new Date(), "dd/MM/yyyy")
         ]);
+        console.log(result);
         return res.status(200).json({
             success: true,
             bills: result.rows
         });
     }
     catch (error) {
-        return res.status(500).json({
-            success: false
+        (0, log_1.writeLogEntry)('Internal error:', log_1.LogLevel.ERROR, log_1.LogType.DATABASE, error);
+        console.log("UNPAID-REGROUP", error);
+        return res.status(200).json({
+            success: false,
+            bills: [],
+            message: 'Internal error'
         });
     }
 });

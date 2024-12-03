@@ -9,6 +9,8 @@ import {
     getICNGroupes,
     getICN,
     generationOfIntegrationFile,
+    update_document_entry_status,
+    close_transaction_all_document_entry_status_integrated,
 } from "../controllers/icn";
 
 const serviceName = serviceType.ICN;
@@ -69,6 +71,12 @@ interncreditRoutes.get(
         ),
     ],
     errorHandler(generationOfIntegrationFile)
+);
+
+
+interncreditRoutes.get(
+    "/test",
+    errorHandler(close_transaction_all_document_entry_status_integrated)
 );
 
 export default interncreditRoutes;

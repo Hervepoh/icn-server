@@ -56,35 +56,35 @@ export async function importCsvToDatabase(filePath: string) {
   });
 }
 
-// Chemin vers le fichier CSV
-const filePath = '/home/hervengando/clients.csv';
+// // Chemin vers le fichier CSV
+// const filePath = '/home/hervengando/clients.csv';
 
-async function main() {
-  console.log(`##########################`);
-  console.log(`##      Start seeding   ##`);
-  console.log(`##########################`);
+// async function main() {
+//   console.log(`##########################`);
+//   console.log(`##      Start seeding   ##`);
+//   console.log(`##########################`);
 
-  try {
-    await importCsvToDatabase(filePath);
-  } catch (error) {
-    console.error('Erreur dans la fonction principale :', error);
-  } finally {
-    console.log(`##########################`);
-    console.log(`##   Seeding finished.  ##`);
-    console.log(`##########################`);
-    await prisma.$disconnect();
-    process.exit(0);
-  }
+//   try {
+//     await importCsvToDatabase(filePath);
+//   } catch (error) {
+//     console.error('Erreur dans la fonction principale :', error);
+//   } finally {
+//     console.log(`##########################`);
+//     console.log(`##   Seeding finished.  ##`);
+//     console.log(`##########################`);
+//     await prisma.$disconnect();
+//     process.exit(0);
+//   }
 
-}
+// }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-    process.exit(1);
-  })
-  .catch(async (e) => {
-    console.error(e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+// main()
+//   .then(async () => {
+//     await prisma.$disconnect();
+//     process.exit(1);
+//   })
+//   .catch(async (e) => {
+//     console.error(e);
+//     await prisma.$disconnect();
+//     process.exit(1);
+//   });

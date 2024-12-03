@@ -156,7 +156,7 @@ exports.bulkRemove = bulkRemove;
 const revalidateService = (key) => __awaiter(void 0, void 0, void 0, function* () {
     const data = yield prismadb_1.default.bank.findMany({
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
     yield redis_1.redis.set(key, JSON.stringify(data));

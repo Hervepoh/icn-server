@@ -66,3 +66,21 @@ export function formatDateRange(period: Period) {
 export function isSameYear(date1: Date, date2: Date): boolean {
   return date1.getFullYear() === date2.getFullYear();
 }
+
+
+export const formatReference = (reference: string): string => {
+    // S'assure d'avoir une chaîne de 10 caractères avec des zéros au début
+    const refPadded = reference.padStart(10, '0');
+    
+    // Vérifie si la chaîne a la bonne longueur
+    if (refPadded.length !== 10) {
+        throw new Error('La référence doit avoir 10 caractères maximum');
+    }
+
+    // Extrait les parties
+    const debut = refPadded.slice(0, 7);  // 7 premiers caractères
+    const fin = refPadded.slice(7, 10);   // 3 caractères suivants
+
+    // Retourne le format désiré
+    return `${debut}.${fin}0`;
+}

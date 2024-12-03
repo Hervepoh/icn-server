@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkSoftRemove = exports.bulkCreate = exports.softRemove = exports.remove = exports.update = exports.getById = exports.get = exports.create = void 0;
+exports.qualityAssurance = exports.bulkSoftRemove = exports.bulkCreate = exports.softRemove = exports.remove = exports.update = exports.getById = exports.get = exports.create = void 0;
 const redis_1 = require("../libs/utils/redis");
 const prismadb_1 = __importDefault(require("../libs/prismadb"));
 const formatter_1 = require("../libs/utils/formatter");
@@ -40,12 +40,13 @@ const create = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             name: parsedTransaction.name,
             amount: parsedTransaction.amount,
             bankId: parsedTransaction.bank,
+            description: parsedTransaction.description,
             statusId: status === null || status === void 0 ? void 0 : status.id,
             paymentModeId: parsedTransaction.payment_mode,
             paymentDate: (0, formatter_1.parseDMY)(parsedTransaction.payment_date),
             createdBy: user.id,
             modifiedBy: user === null || user === void 0 ? void 0 : user.id,
-            userId: user === null || user === void 0 ? void 0 : user.id,
+            userId: user === null || user === void 0 ? void 0 : user.id
         },
     });
     revalidateService(key);
@@ -100,6 +101,16 @@ const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
                     name: true,
                 },
             },
+            unit: {
+                select: {
+                    name: true,
+                },
+            },
+            region: {
+                select: {
+                    name: true,
+                },
+            },
             user: {
                 select: {
                     name: true,
@@ -149,8 +160,8 @@ const get = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const transactions = yield prismadb_1.default.transaction.findMany(query);
     const result = transactions.map((item) => {
-        var _a, _b, _c, _d, _e, _f, _g;
-        return (Object.assign(Object.assign({}, item), { status: (_a = item === null || item === void 0 ? void 0 : item.status) === null || _a === void 0 ? void 0 : _a.name, bank: (_b = item === null || item === void 0 ? void 0 : item.bank) === null || _b === void 0 ? void 0 : _b.name, payment_mode: (_c = item === null || item === void 0 ? void 0 : item.paymentMode) === null || _c === void 0 ? void 0 : _c.name, payment_date: item === null || item === void 0 ? void 0 : item.paymentDate, assignTo: (_d = item === null || item === void 0 ? void 0 : item.user) === null || _d === void 0 ? void 0 : _d.name, validatedBy: (_e = item === null || item === void 0 ? void 0 : item.validator) === null || _e === void 0 ? void 0 : _e.name, modifiedBy: (_f = item === null || item === void 0 ? void 0 : item.modifier) === null || _f === void 0 ? void 0 : _f.name, createdBy: (_g = item === null || item === void 0 ? void 0 : item.creator) === null || _g === void 0 ? void 0 : _g.name, createdById: item === null || item === void 0 ? void 0 : item.createdBy }));
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        return (Object.assign(Object.assign({}, item), { status: (_a = item === null || item === void 0 ? void 0 : item.status) === null || _a === void 0 ? void 0 : _a.name, bank: (_b = item === null || item === void 0 ? void 0 : item.bank) === null || _b === void 0 ? void 0 : _b.name, unit: (_c = item === null || item === void 0 ? void 0 : item.unit) === null || _c === void 0 ? void 0 : _c.name, region: (_d = item === null || item === void 0 ? void 0 : item.region) === null || _d === void 0 ? void 0 : _d.name, payment_mode: (_e = item === null || item === void 0 ? void 0 : item.paymentMode) === null || _e === void 0 ? void 0 : _e.name, payment_date: item === null || item === void 0 ? void 0 : item.paymentDate, assignTo: (_f = item === null || item === void 0 ? void 0 : item.user) === null || _f === void 0 ? void 0 : _f.name, validatedBy: (_g = item === null || item === void 0 ? void 0 : item.validator) === null || _g === void 0 ? void 0 : _g.name, modifiedBy: (_h = item === null || item === void 0 ? void 0 : item.modifier) === null || _h === void 0 ? void 0 : _h.name, createdBy: (_j = item === null || item === void 0 ? void 0 : item.creator) === null || _j === void 0 ? void 0 : _j.name, createdById: item === null || item === void 0 ? void 0 : item.createdBy }));
     });
     revalidateService(key);
     return res.status(200).json({
@@ -230,14 +241,32 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     if (req.body.payment_date) {
         data.paymentDate = new Date(req.body.payment_date);
     }
+    if (req.body.description) {
+        data.description = req.body.description;
+    }
     if (req.body.userId) {
-        const userId = yield prismadb_1.default.user.findFirst({
+        const user = yield prismadb_1.default.user.findFirst({
             where: { id: req.body.userId },
         });
-        if (!userId)
+        if (!user)
             throw new bad_requests_1.default("Bad request unvalidate userId", http_exception_1.ErrorCode.UNAUTHORIZE);
-        data.userId = userId.id;
-        notificationType = "assign";
+        data.userId = user.id;
+    }
+    if (req.body.regionId) {
+        const region = yield prismadb_1.default.region.findFirst({
+            where: { id: req.body.regionId },
+        });
+        if (!region)
+            throw new bad_requests_1.default("Bad request unvalidate regionId", http_exception_1.ErrorCode.UNAUTHORIZE);
+        data.regionId = region.id;
+    }
+    if (req.body.unitId) {
+        const unit = yield prismadb_1.default.unit.findFirst({
+            where: { id: req.body.unitId },
+        });
+        if (!unit)
+            throw new bad_requests_1.default("Bad request unvalidate unitId", http_exception_1.ErrorCode.UNAUTHORIZE);
+        data.unitId = unit.id;
     }
     if (req.body.status) {
         const status = yield prismadb_1.default.status.findFirst({
@@ -251,8 +280,8 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             const request = yield prismadb_1.default.transaction.findFirst({
                 where: { id: id }
             });
-            if (!(request === null || request === void 0 ? void 0 : request.reference) && (request === null || request === void 0 ? void 0 : request.paymentDate)) {
-                const refId = yield genereteICNRef(request.paymentDate);
+            if (!(request === null || request === void 0 ? void 0 : request.reference) && (request === null || request === void 0 ? void 0 : request.paymentDate) && (request === null || request === void 0 ? void 0 : request.bankId)) {
+                const refId = yield generateICNRef(request.paymentDate, request.bankId);
                 data.reference = refId.reference;
             }
             notificationType = "publish";
@@ -270,6 +299,15 @@ const update = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
             data.refusal = true;
             data.reasonForRefusal = req.body.reasonForRefusal;
             notificationType = "reject";
+        }
+        // For Assignation
+        if (req.body.status.toLocaleLowerCase() === app_config_1.appConfig.status[5].toLocaleLowerCase()) {
+            data.assignBy = user.id;
+            data.assignAt = new Date();
+            if ((data.unitId || data.regionId) && !data.userId) {
+                data.userId = null;
+            }
+            notificationType = "assign";
         }
     }
     data = Object.assign(Object.assign({}, data), { modifiedBy: user.id, updatedAt: new Date() });
@@ -406,7 +444,7 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         if (!payMode)
             throw new configuration_1.default("Payment mode not found, please contact adminstrator", http_exception_1.ErrorCode.BAD_CONFIGURATION);
         // Generate a unique reference if it's not provided
-        // const uniqueReference = await genereteICNRef(parseDMY(payment_date));
+        // const uniqueReference = await generateICNRef(parseDMY(payment_date));
         const data = transactions_1.transactionSchema.parse({
             // reference: uniqueReference.reference,
             name,
@@ -420,7 +458,6 @@ const bulkCreate = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
             statusId: 2
         });
         validRequests.push(data);
-        // console.log("data", data)
     }
     // Insert all valid requests into the database
     const createdRequests = yield prismadb_1.default.transaction.createMany({ data: validRequests });
@@ -459,6 +496,119 @@ const bulkSoftRemove = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
     });
 });
 exports.bulkSoftRemove = bulkSoftRemove;
+//-----------------------------------------------------------------------------
+//             QUALITY CONTROLE :  /transactions/:id/quality
+//-----------------------------------------------------------------------------
+const qualityAssurance = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    // Retrieve the transaction ID from request parameters
+    const id = req.params.id;
+    if (!id)
+        throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
+    // Fetch the transaction based on the provided ID
+    const transaction = yield prismadb_1.default.transaction.findUnique({
+        where: { id: id },
+    });
+    if (!transaction)
+        throw new bad_requests_1.default('Invalid params', http_exception_1.ErrorCode.INVALID_DATA);
+    // Check if the transaction status allows further action
+    if (transaction.statusId !== 6) {
+        return res.status(200).json({
+            success: true,
+            quality_assurance: false,
+            message: "No action available on this transaction",
+        });
+    }
+    // Fetch the user making the request
+    const user = yield prismadb_1.default.user.findFirst({
+        where: { id: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id },
+    });
+    if (!user)
+        throw new unauthorized_1.default("UNAUTHORIZE", http_exception_1.ErrorCode.UNAUTHORIZE);
+    // Check if the transaction is locked by another user
+    const lock = yield prismadb_1.default.transactionTempUser.findFirst({ where: { transactionId: id } });
+    if (lock && lock.userId !== user.id) {
+        // Fetch the email of the user who has locked the transaction
+        const lockUser = yield prismadb_1.default.user.findUnique({
+            where: { id: lock.userId },
+            select: { email: true },
+        });
+        return res.status(200).json({
+            success: true,
+            quality_assurance: false,
+            message: `This transaction is currently being processed by another user. You cannot edit it until the user: ${lockUser === null || lockUser === void 0 ? void 0 : lockUser.email} completes their task.`,
+        });
+    }
+    // Fetch the selected invoices related to the transaction
+    const invoices = yield prismadb_1.default.transactionDetail.findMany({
+        where: { transactionId: id, selected: true },
+    });
+    // Calculate the total amount to be paid based on the selected invoices
+    const newTotalToPaid = invoices.reduce((acc, cur) => acc + cur.amountTopaid, 0);
+    if (newTotalToPaid !== transaction.amount) {
+        return res.status(200).json({
+            success: true,
+            quality_assurance: false,
+            message: "The amount you are attempting to pay does not match the amount specified in the ACI.",
+        });
+    }
+    // Track duplicates using a Map for efficient lookup
+    const invoiceMap = new Map();
+    const duplicates = [];
+    // Check for duplicate invoices
+    invoices.forEach(row => {
+        const key = `${row.contract}-${row.invoice}`;
+        if (invoiceMap.has(key)) {
+            duplicates.push(`Bill: ${row.invoice}, Contract: ${row.contract}`);
+        }
+        else {
+            invoiceMap.set(key, true);
+        }
+    });
+    // If duplicates are found, return a message
+    if (duplicates.length > 0) {
+        return res.status(200).json({
+            success: true,
+            quality_assurance: false,
+            message: `You have duplicate invoices: ${duplicates.join(', ')}`,
+        });
+    }
+    // Raw SQL query to check for invoices already used in other transactions
+    const result = yield prismadb_1.default.$queryRawUnsafe(`
+      SELECT 
+        td.invoice,
+        td.transactionId,
+        t.reference,
+        t.statusId,
+        COUNT(*) AS transaction_count
+      FROM 
+        transaction_details td
+      JOIN 
+        transactions t ON td.transactionId = t.id
+      JOIN 
+        (SELECT invoice FROM transaction_details WHERE transactionId = ? AND selected = 1) sub ON td.invoice = sub.invoice
+      WHERE 
+        td.transactionId <> ? AND t.statusId <> 6
+      GROUP BY 
+        td.invoice, td.transactionId, t.reference, t.statusId;
+  `, id, id);
+    // If already used invoices are found, return a message
+    if (result.length > 0) {
+        const alreadyUsed = result.map((row) => `Bill: ${row.invoice} already used in ACI: ${row.reference}`).join(', ');
+        return res.status(200).json({
+            success: true,
+            quality_assurance: false,
+            message: `${alreadyUsed}`,
+        });
+    }
+    // If all checks pass, return success
+    return res.status(200).json({
+        success: true,
+        quality_assurance: true,
+        message: 'ok',
+    });
+});
+exports.qualityAssurance = qualityAssurance;
 const idService = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const data = yield prismadb_1.default.transaction.findUnique({
         where: { id: id },
@@ -480,31 +630,53 @@ const revalidateService = (key) => __awaiter(void 0, void 0, void 0, function* (
 /**
  * The function `generateICNRef` generates a new reference based on the current date and the last
  * reference in the database collection.
- * @param {Date} date - The `genereteICNRef` function is designed to generate a new reference based on
+ * @param {Date} date - The `generateICNRef` function is designed to generate a new reference based on
  * the provided date. It retrieves the last reference from a database collection, extracts the sequence
  * number from it, increments the sequence number, and creates a new reference using the current month
  * and year along with the updated sequence
- * @returns The `genereteICNRef` function returns a new ICN reference number that is generated based on
+ * @returns The `generateICNRef` function returns a new ICN reference number that is generated based on
  * the current date and the last reference number stored in the database. The function first retrieves
  * the last reference number from the database, then calculates a new reference number by incrementing
  * the sequence number part of the last reference number. If there is no last reference number found,
  * it generates a new reference number
  */
-function genereteICNRef(date) {
+function generateICNRef(date, bankId) {
     return __awaiter(this, void 0, void 0, function* () {
+        // Get the bank's code using the bankId
+        const bank = yield prismadb_1.default.bank.findUnique({
+            where: { id: bankId },
+            select: { code: true }
+        });
+        if (!bank || !bank.code) {
+            throw new Error("Bank not found or bank code is missing.");
+        }
         // Get last reference in the references database collection
         const lastReference = yield prismadb_1.default.reference.findFirst({
+            where: {
+                AND: [
+                    {
+                        reference: {
+                            startsWith: (0, formatter_1.getCurrentMonthYear)(date.toDateString()), // Filtrer par mois et année
+                        },
+                    },
+                    {
+                        reference: {
+                            endsWith: bank.code, // Filtrer par suffixe
+                        },
+                    },
+                ],
+            },
             orderBy: { createdAt: 'desc', }
         });
         let newReference;
         if (lastReference) {
-            // Extraction du numéro de séquence à partir de la dernière référence
-            const lastSequenceNumber = parseInt(lastReference.reference.slice(4));
-            newReference = `${(0, formatter_1.getCurrentMonthYear)(date.toDateString())}${String(lastSequenceNumber + 1).padStart(6, '0')}`;
+            // Extract sequence number from last reference
+            const lastSequenceNumber = parseInt(lastReference.reference.slice(4, -2)); // Exclude last 2 characters (bank code)
+            newReference = `${(0, formatter_1.getCurrentMonthYear)(date.toDateString())}${String(lastSequenceNumber + 1).padStart(4, '0')}${bank.code}`;
         }
         else {
-            // Première référence
-            newReference = `${(0, formatter_1.getCurrentMonthYear)(date.toDateString())}000001`;
+            // First reference
+            newReference = `${(0, formatter_1.getCurrentMonthYear)(date.toDateString())}0001${bank.code}`;
         }
         return yield prismadb_1.default.reference.create({ data: { reference: newReference } });
     });
@@ -589,20 +761,21 @@ function notification(type, transaction, user) {
                 break;
             case "assign":
                 // Handle assign case and notify the person who created the transaction
-                const assignCreator = yield prismadb_1.default.user.findFirst({
-                    where: { id: transaction.userId },
-                });
-                if (assignCreator) {
-                    yield prismadb_1.default.notification.create({
-                        data: {
-                            email: assignCreator.email,
-                            message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
-                            method: client_1.NotificationMethod.EMAIL,
-                            subject: "Transaction Assigned",
-                            template: "notification.mail.ejs",
-                        },
-                    });
-                }
+                // TODO
+                // const assignCreator = await prismaClient.user.findFirst({
+                //   where: { id: transaction.userId },
+                // });
+                // if (assignCreator) {
+                //   await prismaClient.notification.create({
+                //     data: {
+                //       email: assignCreator.email,
+                //       message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
+                //       method: NotificationMethod.EMAIL,
+                //       subject: "Transaction Assigned",
+                //       template: "notification.mail.ejs",
+                //     },
+                //   });
+                // }
                 break;
             case "treat":
                 // Handle treat case if needed

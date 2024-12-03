@@ -14,7 +14,6 @@ import ConfigurationException from "../exceptions/configuration";
 import NotFoundException from "../exceptions/not-found";
 import { getUserConnected } from "../libs/authentificationService";
 import { NotificationMethod, SourceType, Transaction } from '@prisma/client';
-import { updateSchema } from "../schema/users";
 import { EventType } from "../constants/enum";
 
 interface TransactionWithRelations extends Transaction {
@@ -22,6 +21,12 @@ interface TransactionWithRelations extends Transaction {
     name: string;
   };
   paymentMode?: {
+    name: string;
+  };
+  unit?: {
+    name: string;
+  };
+  region?: {
     name: string;
   };
   status?: {
@@ -54,6 +59,7 @@ interface ITransactionRequest {
   bank: string;
   payment_date: Date;
   payment_mode: string;
+  description?: string
 }
 
 // Handling create process
@@ -72,12 +78,13 @@ export const create =
         name: parsedTransaction.name,
         amount: parsedTransaction.amount,
         bankId: parsedTransaction.bank,
+        description: parsedTransaction.description,
         statusId: status?.id,
         paymentModeId: parsedTransaction.payment_mode,
         paymentDate: parseDMY(parsedTransaction.payment_date),
         createdBy: user.id,
         modifiedBy: user?.id,
-        userId: user?.id,
+        userId: user?.id
       },
     });
     revalidateService(key);
@@ -136,6 +143,16 @@ export const get =
           },
         },
         status: {
+          select: {
+            name: true,
+          },
+        },
+        unit: {
+          select: {
+            name: true,
+          },
+        },
+        region: {
           select: {
             name: true,
           },
@@ -201,14 +218,14 @@ export const get =
       }
     }
 
-
-
     const transactions = await prismaClient.transaction.findMany(query) as TransactionWithRelations[];
 
     const result = transactions.map((item) => ({
       ...item,
       status: item?.status?.name,
       bank: item?.bank?.name,
+      unit: item?.unit?.name,
+      region: item?.region?.name,
       payment_mode: item?.paymentMode?.name,
       payment_date: item?.paymentDate,
       assignTo: item?.user?.name,
@@ -311,14 +328,34 @@ export const update =
       data.paymentDate = new Date(req.body.payment_date)
     }
 
+    if (req.body.description) {
+      data.description = req.body.description
+    }
+
     if (req.body.userId) {
-      const userId = await prismaClient.user.findFirst({
+      const user = await prismaClient.user.findFirst({
         where: { id: req.body.userId },
       });
-      if (!userId) throw new BadRequestException("Bad request unvalidate userId", ErrorCode.UNAUTHORIZE);
-      data.userId = userId.id
-      notificationType = "assign"
+      if (!user) throw new BadRequestException("Bad request unvalidate userId", ErrorCode.UNAUTHORIZE);
+      data.userId = user.id
     }
+
+    if (req.body.regionId) {
+      const region = await prismaClient.region.findFirst({
+        where: { id: req.body.regionId },
+      });
+      if (!region) throw new BadRequestException("Bad request unvalidate regionId", ErrorCode.UNAUTHORIZE);
+      data.regionId = region.id
+    }
+
+    if (req.body.unitId) {
+      const unit = await prismaClient.unit.findFirst({
+        where: { id: req.body.unitId },
+      });
+      if (!unit) throw new BadRequestException("Bad request unvalidate unitId", ErrorCode.UNAUTHORIZE);
+      data.unitId = unit.id
+    }
+
 
     if (req.body.status) {
       const status = await prismaClient.status.findFirst({
@@ -355,6 +392,17 @@ export const update =
         data.refusal = true;
         data.reasonForRefusal = req.body.reasonForRefusal;
         notificationType = "reject"
+      }
+
+      // For Assignation
+      if (req.body.status.toLocaleLowerCase() === appConfig.status[5].toLocaleLowerCase()) {
+        data.assignBy = user.id;
+        data.assignAt = new Date();
+        if ((data.unitId || data.regionId) && !data.userId) {
+          data.userId = null
+        }
+
+        notificationType = "assign"
       }
 
     }
@@ -548,7 +596,6 @@ export const bulkCreate =
 
       })
       validRequests.push(data);
-      // console.log("data", data)
     }
 
     // Insert all valid requests into the database
@@ -601,6 +648,131 @@ export const bulkSoftRemove =
     });
 
   }
+
+
+//-----------------------------------------------------------------------------
+//             QUALITY CONTROLE :  /transactions/:id/quality
+//-----------------------------------------------------------------------------
+
+export const qualityAssurance =
+  async (req: Request, res: Response, next: NextFunction) => {
+
+    // Retrieve the transaction ID from request parameters
+    const id = req.params.id;
+    if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+
+    // Fetch the transaction based on the provided ID
+    const transaction = await prismaClient.transaction.findUnique({
+      where: { id: id },
+    });
+    if (!transaction) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+
+    // Check if the transaction status allows further action
+    if (transaction.statusId !== 6) {
+      return res.status(200).json({
+        success: true,
+        quality_assurance: false,
+        message: "No action available on this transaction",
+      });
+    }
+
+    // Fetch the user making the request
+    const user = await prismaClient.user.findFirst({
+      where: { id: req.user?.id },
+    });
+    if (!user) throw new UnauthorizedException("UNAUTHORIZE", ErrorCode.UNAUTHORIZE);
+
+    // Check if the transaction is locked by another user
+    const lock = await prismaClient.transactionTempUser.findFirst({ where: { transactionId: id } });
+    if (lock && lock.userId !== user.id) {
+      // Fetch the email of the user who has locked the transaction
+      const lockUser = await prismaClient.user.findUnique({
+        where: { id: lock.userId },
+        select: { email: true },
+      });
+      return res.status(200).json({
+        success: true,
+        quality_assurance: false,
+        message: `This transaction is currently being processed by another user. You cannot edit it until the user: ${lockUser?.email} completes their task.`,
+      });
+    }
+
+    // Fetch the selected invoices related to the transaction
+    const invoices = await prismaClient.transactionDetail.findMany({
+      where: { transactionId: id, selected: true },
+    });
+
+    // Calculate the total amount to be paid based on the selected invoices
+    const newTotalToPaid = invoices.reduce((acc, cur) => acc + cur.amountTopaid, 0);
+    if (newTotalToPaid !== transaction.amount) {
+      return res.status(200).json({
+        success: true,
+        quality_assurance: false,
+        message: "The amount you are attempting to pay does not match the amount specified in the ACI.",
+      });
+    }
+
+    // Track duplicates using a Map for efficient lookup
+    const invoiceMap = new Map<string, boolean>();
+    const duplicates: string[] = [];
+
+    // Check for duplicate invoices
+    invoices.forEach(row => {
+      const key = `${row.contract}-${row.invoice}`;
+      if (invoiceMap.has(key)) {
+        duplicates.push(`Bill: ${row.invoice}, Contract: ${row.contract}`);
+      } else {
+        invoiceMap.set(key, true);
+      }
+    });
+
+    // If duplicates are found, return a message
+    if (duplicates.length > 0) {
+      return res.status(200).json({
+        success: true,
+        quality_assurance: false,
+        message: `You have duplicate invoices: ${duplicates.join(', ')}`,
+      });
+    }
+
+    // Raw SQL query to check for invoices already used in other transactions
+    const result: any = await prismaClient.$queryRawUnsafe(`
+      SELECT 
+        td.invoice,
+        td.transactionId,
+        t.reference,
+        t.statusId,
+        COUNT(*) AS transaction_count
+      FROM 
+        transaction_details td
+      JOIN 
+        transactions t ON td.transactionId = t.id
+      JOIN 
+        (SELECT invoice FROM transaction_details WHERE transactionId = ? AND selected = 1) sub ON td.invoice = sub.invoice
+      WHERE 
+        td.transactionId <> ? AND t.statusId <> 6
+      GROUP BY 
+        td.invoice, td.transactionId, t.reference, t.statusId;
+  `, id, id);
+
+    // If already used invoices are found, return a message
+    if (result.length > 0) {
+      const alreadyUsed = result.map((row: { invoice: any; reference: any; }) => `Bill: ${row.invoice} already used in ACI: ${row.reference}`).join(', ');
+      return res.status(200).json({
+        success: true,
+        quality_assurance: false,
+        message: `${alreadyUsed}`,
+      });
+    }
+
+    // If all checks pass, return success
+    return res.status(200).json({
+      success: true,
+      quality_assurance: true,
+      message: 'ok',
+    });
+
+  };
 
 
 
@@ -659,6 +831,20 @@ async function generateICNRef(date: Date, bankId: string) {
 
   // Get last reference in the references database collection
   const lastReference = await prismaClient.reference.findFirst({
+    where: {
+      AND: [
+        {
+          reference: {
+            startsWith: getCurrentMonthYear(date.toDateString()), // Filtrer par mois et année
+          },
+        },
+        {
+          reference: {
+            endsWith: bank.code, // Filtrer par suffixe
+          },
+        },
+      ],
+    },
     orderBy: { createdAt: 'desc', }
   });
 
@@ -758,20 +944,21 @@ async function notification(type: notificationType, transaction: any, user: any)
       break;
     case "assign":
       // Handle assign case and notify the person who created the transaction
-      const assignCreator = await prismaClient.user.findFirst({
-        where: { id: transaction.userId },
-      });
-      if (assignCreator) {
-        await prismaClient.notification.create({
-          data: {
-            email: assignCreator.email,
-            message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
-            method: NotificationMethod.EMAIL,
-            subject: "Transaction Assigned",
-            template: "notification.mail.ejs",
-          },
-        });
-      }
+      // TODO
+      // const assignCreator = await prismaClient.user.findFirst({
+      //   where: { id: transaction.userId },
+      // });
+      // if (assignCreator) {
+      //   await prismaClient.notification.create({
+      //     data: {
+      //       email: assignCreator.email,
+      //       message: `Transaction ID: ${transaction.reference} has been assigned to you and need your commercial input.`,
+      //       method: NotificationMethod.EMAIL,
+      //       subject: "Transaction Assigned",
+      //       template: "notification.mail.ejs",
+      //     },
+      //   });
+      // }
       break;
     case "treat":
       // Handle treat case if needed

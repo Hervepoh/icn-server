@@ -1,10 +1,10 @@
 import { NextFunction, Request, Response } from "express";
+import { format } from "date-fns";
 
 import { sqlQuery } from "../constants/request";
 import { isEmpty } from "../libs/utils/formatter";
 import { executeQuery, getConnection, releaseConnection } from "../libs/utils/db.oracle";
-import { format } from "date-fns";
-import InternalException from "../exceptions/internal-exception";
+import { LogLevel, LogType, writeLogEntry } from "../libs/utils/log";
 import { ErrorCode } from "../exceptions/http-exception";
 import BadRequestException from "../exceptions/bad-requests";
 
@@ -68,9 +68,31 @@ export const getUnpaidBillsByInvoiceNumber =
       // Get Invoice Number from the query params 
       const { value: invoice_number } = req.query;
 
+      // Validate invoice_number
+      if (!invoice_number) {
+        return res.status(200).json({
+          success: true,
+          bills: [],
+          message: "Invalid invoice is required"
+        });
+      }
+
+      // Check for characters (allowing only numeric characters)
+      const isValidInvoiceNumber = /^\d+$/.test(invoice_number.toString());
+      if (!isValidInvoiceNumber) {
+        return res.status(200).json({
+          success: false,
+          bills: [],
+          message: 'Invoice number must be numeric and cannot contain special characters'
+        });
+      }
+
       // Fetch data from the database
       connection = await getConnection();
-      const result = await connection.execute(sqlQuery.unpaid_bills_by_invoice_number, [invoice_number]);
+      const result = await connection.execute(
+        sqlQuery.unpaid_bills_by_invoice_number,
+        [invoice_number.toString().trim()]
+      );
 
       // send the response
       res.status(200).json({
@@ -79,7 +101,14 @@ export const getUnpaidBillsByInvoiceNumber =
       });
     } catch (error: any) {
       // Catch the error and return and error respons
-      throw new InternalException(error.message, error, ErrorCode.INTERNAL_EXCEPTION);
+      writeLogEntry('Internal error:', LogLevel.ERROR, LogType.DATABASE, error.message);
+      console.log("UNPAID-INVOICE",error)
+      return res.status(200).json({
+        success: false,
+        bills: [],
+        message: 'Internal error'
+      });
+      // throw new InternalException(error.message, error, ErrorCode.INTERNAL_EXCEPTION);
     } finally {
       // close the connection to the database
       if (connection) {
@@ -98,12 +127,29 @@ export const getUnpaidBillsByContractNumber =
     // Get date param from query parameters
     const { value: contract_number, from: FromDate, to: ToDate } = req.query;
 
-    // TODO :  Define the contraint due to the period 
-    if (isEmpty(contract_number) || isEmpty(FromDate) || isEmpty(ToDate)) {
-      throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
-    }
     if (!FromDate || !ToDate) {
-      throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
+      return res.status(200).json({
+        success: true,
+        bills: [],
+        message: "You must provide a period"
+      });
+    }
+
+    if (!contract_number) {
+      return res.status(200).json({
+        success: true,
+        bills: [],
+        message: "Contract number is required"
+      });
+    }
+
+    const isValidContractNumber = /^\d+$/.test(contract_number.toString());
+    if (!isValidContractNumber) {
+      return res.status(200).json({
+        success: false,
+        bills: [],
+        message: 'Contract number must be numeric and cannot contain special characters'
+      });
     }
 
     try {
@@ -111,30 +157,27 @@ export const getUnpaidBillsByContractNumber =
       const result = await executeQuery(
         sqlQuery.unpaid_bills_by_contract_number,
         [
-          contract_number,
+          contract_number.toString().trim(),
           format(FromDate.toString() ?? new Date(), "dd/MM/yyyy"),
-          format(ToDate.toString()  ?? new Date(), "dd/MM/yyyy")
+          format(ToDate.toString() ?? new Date(), "dd/MM/yyyy")
         ]
       );    // send the response
       return res.status(200).json({
         success: true,
         bills: result.rows
       });
-
-
-    } catch (error) {
-      return res.status(500).json({
+    } catch (error: any) {
+      // Catch the error and return and error respons
+      writeLogEntry('Internal error:', LogLevel.ERROR, LogType.DATABASE, error);
+      console.log("UNPAID-CONTRACT",error)
+      return res.status(200).json({
         success: false,
-        message: "An error in getUnpaidBillsByContractNumber"
+        bills: [],
+        message: 'Internal error'
       });
     }
 
-
-
   };
-
-
-
 
 
 //---------------------------------------------------------
@@ -143,31 +186,44 @@ export const getUnpaidBillsByContractNumber =
 export const getUnpaidBillsByCustomerRegroupNumber =
   async (req: Request, res: Response, next: NextFunction) => {
     const { value, from: FromDate, to: ToDate } = req.query;
-    // TODO :  Define the contraint due to the period 
-    if (isEmpty(value) || isEmpty(FromDate) || isEmpty(ToDate)) {
-      throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
-    }
+
     if (!FromDate || !ToDate) {
-      throw new BadRequestException("Invalid parameters", ErrorCode.INVALID_DATA);
+      return res.status(200).json({
+        success: true,
+        bills: [],
+        message: "You must provide a period"
+      });
     }
 
-
+    if (!value) {
+      return res.status(200).json({
+        success: true,
+        bills: [],
+        message: "Customer Regroup number is required"
+      });
+    }
     // Fetch data from the database
     try {
       const result = await executeQuery(
         sqlQuery.unpaid_bills_by_customer_regroup_number,
         [
-          value, FromDate.toString(), ToDate.toString()
+          value.toString().trim(), 
+          format(FromDate.toString() ?? new Date(), "dd/MM/yyyy"),
+          format(ToDate.toString() ?? new Date(), "dd/MM/yyyy")
         ]
       );
-
+      console.log(result);
       return res.status(200).json({
         success: true,
         bills: result.rows
       });
-    } catch (error) {
-      return res.status(500).json({
-        success: false
+    } catch (error: any) {
+      writeLogEntry('Internal error:', LogLevel.ERROR, LogType.DATABASE, error);
+      console.log("UNPAID-REGROUP",error)
+      return res.status(200).json({
+        success: false,
+        bills: [],
+        message: 'Internal error'
       });
     }
 

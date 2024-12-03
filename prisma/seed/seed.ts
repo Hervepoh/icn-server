@@ -4,15 +4,15 @@ import { serviceType } from '../../src/constants/enum';
 import { SALT_ROUNDS } from '../../src/secrets';
 import { redis } from '../../src/libs/utils/redis';
 import { importCsvToDatabase } from './seed-referentiel';
+import { userList } from './seed-user';
+import { unitList } from './seed-unit';
 
 const prisma = new PrismaClient();
 
-//Liste des services tracker par redis
-
-// Liste des moyens de paiement
+// List of payment methods
 const paymentModes = ['CHECQUE', 'COMPENSATION', 'VIREMENT', 'TRAITE', 'VERSEMENT ESPECE', 'MEMO'];
 
-// Liste des banques
+// List of banks
 const banks = [
   { name: 'AFRILAND', code: '01' },
   { name: 'BICEC', code: '11' },
@@ -30,7 +30,33 @@ const banks = [
   { name: 'UBC', code: '23' }
 ];
 
-// Liste des rôles
+// List of regions 
+const regions = [
+  'DRC',
+  'DRD',
+  'DRE',
+  'DRNEA',
+  'DRSANO',
+  'DRSM',
+  'DRSOM',
+  'DRY',
+  'DRONO',
+  'SIEGE',
+];
+
+// List of units 
+const units = unitList;
+
+// List of segments 
+const segments = [
+  'ADMINISTRATION',
+  'AGROALIMENTAIRE, EAU, ENERGIE ET AUTRES SERVICES',
+  'MARCHE DE MASSE',
+  'SOCIETES DES ACIERIES, CIMENTERIE, TEXTILE, METALLURGIE',
+  'TELECOMS, BANQUES, ASSURANCES ET TRANSPORT'
+];
+
+// List of status
 const status = [
   'deleted',
   "draft",
@@ -43,10 +69,10 @@ const status = [
   "treated"
 ];
 
-// Liste des rôles
+// List of roles
 const roles = ['ADMIN', 'USER', 'VALIDATOR', 'ASSIGNATOR', 'COMMERCIAL', 'MANAGER'];
 
-// Debut Liste des permissions
+// Begin declarate List of permissions
 const services = Object.values(serviceType);
 const permissions = [
   'CREATE', 'READ', 'WRITE', 'UPDATE', 'DELETE', 'BULKCREATE', 'BULKDELETE', 'SEARCH'
@@ -57,82 +83,60 @@ const customPermissions = [
   "TRANSACTION-PUBLISH", "TRANSACTION-VALIDATE", "TRANSACTION-ASSIGN", "TRANSACTION-COMMERCIAL",
   "SUMMARY-README"
 ];
-// Fin Liste des permissions
+// End declarate List of permissions
 
 
-// Debut Listing Permissions spécifiques a attribuer par pofil
+// Begin Listing Specific permissions to be assigned by pofil
+// for COMMERCIAL
 const specificPermissionForCOMMERCIAL = [
   "TRANSACTION-READ", "TRANSACTION-COMMERCIAL",
   "TRANSACTIONDETAIL-READ", "TRANSACTIONDETAIL-WRITE", "TRANSACTIONDETAIL-BULKCREATE", "TRANSACTIONDETAIL-BULKDELETE",
   "SUMMARY-README",
   "BANK-READ",
+  "REGION-READ",
+  "UNIT-READ",
+  "SEGMENT-READ",
   "PAYMENTMODE-READ",
   "UNPAID-SEARCH",
   "ICN-READ",
   "ROLE-READ",
   "USER-READNOTIFICATION"
 ];
-const specificPermissionForAssignator = ["SUMMARY-READ", "TRANSACTION-READ", "TRANSACTION-ASSIGN", "USER-SEARCH"];
-const specificPermissionForValidation = ["SUMMARY-READ", "TRANSACTION-READ", "TRANSACTION-VALIDATE"];
+// for Assignator
+const specificPermissionForAssignator = [
+  "SUMMARY-READ",
+  "TRANSACTION-READ", "TRANSACTION-ASSIGN",
+  "REGION-READ",
+  "UNIT-READ",
+  "SEGMENT-READ",
+  "USER-SEARCH"
+];
+// for Validation
+const specificPermissionForValidation = [
+  "SUMMARY-READ",
+  "TRANSACTION-READ",
+  "TRANSACTION-VALIDATE"
+];
+// for Initiator
 const specificPermissionForUSER = [
   "TRANSACTION-READ", "TRANSACTION-WRITE", "TRANSACTION-PUBLISH", "TRANSACTION-BULKCREATE",
   "SUMMARY-README",
   "BANK-READ",
   "PAYMENTMODE-READ",
+  "SEGMENT-READ",
   "UNPAID-SEARCH",
   "ICN-READ",
   "ROLE-READ",
   "USER-READNOTIFICATION"
 ];
-// Fin Listing Permissions spécifiques a attribuer par pofil
+// End Listing Specific permissions to be assigned by pofil
 
 const servicePermissions = services.flatMap(service =>
   permissions.map(permission => `${service}-${permission}`)
 );
 
-// Données des utilisateurs
-const users: Prisma.UserCreateInput[] = [
-  {
-    name: 'admin',
-    email: 'admin@eneo.cm',
-    password: 'admin'
-  },
-  {
-    name: 'Alice',
-    email: 'alice@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'Aline',
-    email: 'aline@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'Nilu',
-    email: 'nilu@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'Mahmoud',
-    email: 'mahmoud@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'validateur',
-    email: 'validateur@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'assignateur',
-    email: 'assignateur@eneo.cm',
-    password: 'password'
-  },
-  {
-    name: 'commercial',
-    email: 'commercial@eneo.cm',
-    password: 'password'
-  },
-];
+// Users data
+const users: Prisma.UserCreateInput[] = userList;
 
 async function main() {
   console.log(`##########################`);
@@ -144,9 +148,12 @@ async function main() {
 
   console.log(`Cache cleared.`);
 
-  // Vider les tables
+  // Clear database tables
 
   await prisma.audit.deleteMany({});
+  await prisma.unit.deleteMany({});
+  await prisma.region.deleteMany({});
+  await prisma.segment.deleteMany({});
   await prisma.reference.deleteMany({});
   await prisma.notification.deleteMany({});
   await prisma.userRole.deleteMany({});
@@ -166,7 +173,7 @@ async function main() {
 
   console.log(`Tables cleared.`);
 
-  // Créer les Banques
+  // Insert Banks 
   const bankPromises = banks.map(item =>
     prisma.bank.create({
       data: {
@@ -176,13 +183,14 @@ async function main() {
     })
   );
   const createdBanks = await Promise.all(bankPromises);
-  console.log(`Created banks: ${banks.join(', ')}`);
+  console.log(`Created banks: ${banks.map(bank => bank.name).join(', ')}`);
   createdBanks.forEach(item => {
-    console.log(`Created payment Mode with id: ${item.id}`);
+    console.log(`Created bank  [${item.name}] with id: ${item.id}`);
   });
+  console.log(`  `);
   /////////////////////////////////////
 
-  // Créer les Banques
+  // Insert Payment Modes
   const payModePromises = paymentModes.map(item =>
     prisma.paymentMode.create({
       data: { name: item },
@@ -191,11 +199,95 @@ async function main() {
   const createdPaymentModes = await Promise.all(payModePromises);
   console.log(`Created paymentModes: ${paymentModes.join(', ')}`);
   createdPaymentModes.forEach(item => {
-    console.log(`Created payment Mode with id: ${item.id}`);
+    console.log(`Created payment Mode  [${item.name}] with id: ${item.id}`);
   });
+  console.log(`  `);
   /////////////////////////////////////
 
-  // Créer les permissions
+  // Insert Segments
+  const segmentPromises = segments.map(item =>
+    prisma.segment.create({
+      data: { name: item },
+    })
+  );
+  const createdSegments = await Promise.all(segmentPromises);
+  console.log(`Created segments: ${segments.join(', ')}`);
+  createdSegments.forEach(item => {
+    console.log(`Created segment [${item.name}] with id: ${item.id}`);
+  });
+  console.log(`  `);
+  /////////////////////////////////////
+
+  // Insert Regions
+  const regionPromises = regions.map(item =>
+    prisma.region.create({
+      data: { name: item },
+    })
+  );
+  const createdRegions = await Promise.all(regionPromises);
+  console.log(`Created regions: ${regions.join(', ')}`);
+  createdRegions.forEach(item => {
+    console.log(`Created region [${item.name}] with id: ${item.id}`);
+  });
+  console.log(`  `);
+  /////////////////////////////////////
+
+  // Insert Units
+  const createdUnits: { id: string; name: string; createdAt: Date; updatedAt: Date; regionId: string; }[] = []; // Array to hold created units
+
+  const unitPromises = units.map(async (item) => {
+    const unitName = item.unit.trim();
+    const regionName = item.region.trim();
+
+    // Check if the unit already exists
+    let existingUnit = await prisma.unit.findUnique({
+      where: { name: unitName }
+    });
+
+    // If the unit doesn't exist, create it
+    if (!existingUnit) {
+      // Check if the region already exists
+      let region = await prisma.region.findUnique({
+        where: { name: regionName }
+      });
+
+      if (!region) {
+        console.error(`Region [${regionName}] does not exist, skipping unit creation for [${unitName}].`);
+        return; // Skip this unit creation
+      }
+
+      try {
+        const createdUnit = await prisma.unit.create({
+          data: { name: unitName, regionId: region.id }
+        });
+        createdUnits.push(createdUnit); // Collect created units
+        console.log(`Created unit: ${unitName}`);
+      } catch (error) {
+        // console.error(`Error creating unit [${unitName}]:`, error);
+        console.error(`Error creating unit [${unitName}]:`);
+        // Affichez des informations supplémentaires sur l'erreur
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          // console.error(`Error Code: ${error.code}`);
+          console.error(`Error Meta: ${JSON.stringify(error.meta)}`);
+        }
+      }
+    } else {
+      console.log(`Unit [${unitName}] already exists, skipping creation.`);
+    }
+  });
+
+  // Wait for all promises to resolve
+  await Promise.all(unitPromises);
+
+  // Log the created units
+  console.log(`Created units: ${units.map(item => item.unit).join(', ')}`);
+  createdUnits.forEach(item => {
+    console.log(`Created unit [${item.name}] with id: ${item.id}`);
+  });
+  console.log(`  `);
+  /////////////////////////////////////
+
+  // Insert Permissions
   const permissionPromises = servicePermissions.map(permission =>
     prisma.permission.create({
       data: { name: permission! },
@@ -204,7 +296,7 @@ async function main() {
   const createdPermissions = await Promise.all(permissionPromises);
   console.log(`Created permissions: ${servicePermissions.join(', ')}`);
   createdPermissions.forEach(item => {
-    console.log(`Created permission with id: ${item.id}`);
+    console.log(`Created permission [${item.name}] with id: ${item.id}`);
   });
 
   const customPermissionsPromises = customPermissions.map(item =>
@@ -214,11 +306,12 @@ async function main() {
   );
   const createdCustomPermissions = await Promise.all(customPermissionsPromises);
   createdCustomPermissions.forEach(item => {
-    console.log(`Created permission with id: ${item.id}`);
+    console.log(`Created permission [${item.name}] with id: ${item.id}`);
   });
+  console.log(`  `);
   /////////////////////////////////////
 
-  // Créer les roles
+  // insert Roles
   const rolePromises = roles.map(role =>
     prisma.role.create({
       data: { name: role },
@@ -227,11 +320,12 @@ async function main() {
   const createdRoles = await Promise.all(rolePromises);
   console.log(`Created roles: ${roles.join(', ')}`);
   createdRoles.forEach(item => {
-    console.log(`Created role with id: ${item.id}`);
+    console.log(`Created role [${item.name}] with id: ${item.id}`);
   });
+  console.log(`  `);
   /////////////////////////////////////
 
-  // Créer les utilisateurs
+  // Insert users
   const userPromises = users.map(async u =>
     prisma.user.create({
       data: {
@@ -244,10 +338,11 @@ async function main() {
   createdUsers.forEach(user => {
     console.log(`Created user with id: ${user.id}`);
   });
+  console.log(`  `);
   /////////////////////////////////////
 
-  // (Optionnel) Associer les rôles aux utilisateurs
-  //Pour l' ADMIN
+  // (Optional) Associate roles with users
+  // For ADMIN
   const USER_ADMIN = await prisma.user.findFirst({
     where: { name: "admin" }
   })
@@ -263,6 +358,7 @@ async function main() {
     });
     console.log(`ROLE ${ROLE_ADMIN.name}  assign to the user ${USER_ADMIN.name}`);
   }
+
   //FOR VALIDATOR
   const USER_VALIDATOR = await prisma.user.findFirst({
     where: { name: "validateur" }
@@ -280,7 +376,7 @@ async function main() {
     console.log(`ROLE ${ROLE_VALIDATOR.name}  assign to the user ${USER_VALIDATOR.name}`);
   }
 
-  //FOR VALIDATOR
+  //FOR COMMERCIAL
   const USER_COMMERCIAL = await prisma.user.findFirst({
     where: { name: "commercial" }
   })
@@ -438,7 +534,7 @@ async function main() {
   }
 
 
-  // Créer les status
+  // insert Status
   const createdStatus = [];
 
   for (const item of status) {
@@ -448,12 +544,27 @@ async function main() {
     createdStatus.push(created);
   }
   console.log(`Created status: ${createdStatus.map(s => s.name).join(', ')}`);
+  console.log(`    `)
 
-  
-  // Importion du reférentiel client 
-  // Chemin vers le fichier CSV
+  // Commercial Organisation of users
+  // FOR commercial 
+  const USER_UNIT = await prisma.unit.findFirst({
+    where: { name: "DVC DOUALA NORD" }
+  })
+
+  if (USER_COMMERCIAL && USER_UNIT) {
+    await prisma.user.update({
+      where: { id: USER_COMMERCIAL.id },
+      data: {
+        unitId: USER_UNIT.id,
+      }
+    });
+    console.log(`USER_COMMERCIAL ${USER_COMMERCIAL.name}  is in unit ${USER_UNIT.name}`);
+  }
+
+
+  // Customer_reference import 
   const filePath = '/home/hervengando/clients.csv';
-  // Importation 
   await importCsvToDatabase(filePath);
 
   console.log(`##########################`);

@@ -4,8 +4,8 @@ exports.bulkDeleteSchema = exports.bulkCreateSchema = exports.paymentModeSchema 
 const zod_1 = require("zod");
 const paymentModeSchema = zod_1.z.object({
     name: zod_1.z.string()
-        .min(1, 'Bank name is required')
-        .max(100, { message: "Bank name Less than 100 caracters." })
+        .min(1, 'Name is required')
+        .max(100, { message: "Name Less than 100 caracters." })
         .regex(/^[a-zA-Z0-9\s]+$/, { message: "The payment mode name can only contain letters, numbers, and spaces." })
 });
 exports.paymentModeSchema = paymentModeSchema;

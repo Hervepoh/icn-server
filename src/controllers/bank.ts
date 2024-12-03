@@ -206,7 +206,7 @@ export const bulkRemove = async (req: Request, res: Response, next: NextFunction
 const revalidateService = async (key: string) => {
     const data = await prismaClient.bank.findMany({
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
     await redis.set(key, JSON.stringify(data));

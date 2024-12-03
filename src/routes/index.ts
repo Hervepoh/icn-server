@@ -14,6 +14,9 @@ import notificationRoutes from "./notification";
 import statusRoutes from "./status";
 import unpaidOrPaidRoutes from "./unpaidOrPaid";
 import customersReferenceRoutes from "./customerReference";
+import segmentRoutes from "./segment";
+import unitRoutes from "./unit";
+import regionRoutes from "./region";
 
 const rootRouter:Router = Router();
 
@@ -26,6 +29,9 @@ rootRouter.use('/status' , statusRoutes);
 rootRouter.use('/summary' , summaryRoutes);
 rootRouter.use('/banks' , bankRoutes);
 rootRouter.use('/pay-modes' , paymentModeRoutes);
+rootRouter.use('/segments' , segmentRoutes);
+rootRouter.use('/units' , unitRoutes);
+rootRouter.use('/regions' , regionRoutes);
 rootRouter.use('/requests' , transactionRoutes);
 rootRouter.use('/requests-details' , transactionDetailRoutes);
 rootRouter.use('/search-unpaid' , unpaidRoutes);

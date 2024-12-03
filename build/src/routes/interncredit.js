@@ -50,4 +50,5 @@ interncreditRoutes.get("/documents", [
     auth_1.default,
     (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`, `${serviceName}-DOCUMENTS`),
 ], (0, error_handler_1.errorHandler)(icn_1.generationOfIntegrationFile));
+interncreditRoutes.get("/test", (0, error_handler_1.errorHandler)(icn_1.close_transaction_all_document_entry_status_integrated));
 exports.default = interncreditRoutes;

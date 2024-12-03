@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseDMY = exports.getCurrentMonthYear = exports.formatDate = void 0;
+exports.formatReference = exports.parseDMY = exports.getCurrentMonthYear = exports.formatDate = void 0;
 exports.isEmpty = isEmpty;
 exports.formatDateRange = formatDateRange;
 exports.isSameYear = isSameYear;
@@ -55,3 +55,17 @@ function formatDateRange(period) {
 function isSameYear(date1, date2) {
     return date1.getFullYear() === date2.getFullYear();
 }
+const formatReference = (reference) => {
+    // S'assure d'avoir une chaîne de 10 caractères avec des zéros au début
+    const refPadded = reference.padStart(10, '0');
+    // Vérifie si la chaîne a la bonne longueur
+    if (refPadded.length !== 10) {
+        throw new Error('La référence doit avoir 10 caractères maximum');
+    }
+    // Extrait les parties
+    const debut = refPadded.slice(0, 7); // 7 premiers caractères
+    const fin = refPadded.slice(7, 10); // 3 caractères suivants
+    // Retourne le format désiré
+    return `${debut}.${fin}0`;
+};
+exports.formatReference = formatReference;

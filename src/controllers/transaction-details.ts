@@ -17,8 +17,15 @@ export const get =
     const id = req.params.id;
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
+    const user = await prismaClient.user.findUnique({
+      where: { id: req.user?.id }
+    });
+    if (!user) throw new UnauthorizedException("Unauthorize ressource due", ErrorCode.UNAUTHORIZE);
+
     const datas = await prismaClient.transactionDetail.findMany({
-      where: { transactionId: id },
+      where: {
+        transactionId: id
+      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -36,19 +43,29 @@ export const bulkCreate =
     const id = req.params.id;
     if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
-    // check if the user id is valid
+    // check if the transaction id is valid
+    const transaction = await prismaClient.transaction.findUnique({
+      where: { id: id }
+    });
+    if (!transaction) throw new BadRequestException("Bad request params", ErrorCode.RESSOURCE_NOT_FOUND);
+
+    // checkif the transaction is in the status pending_commercial_input 
+    if (transaction.statusId !== 6) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+
+
     const user = await prismaClient.user.findUnique({
       where: { id: req.user?.id }
     });
-    if (!user) throw new UnauthorizedException("Unauthorize ressource due", ErrorCode.UNAUTHORIZE);
+    if (!user) throw new UnauthorizedException("Unauthorize ressource", ErrorCode.UNAUTHORIZE);
+
     //TODO: check if the user is the assignee of the record
-    const isAssignTo = await prismaClient.transaction.findFirst({
-      where: {
-        id: id,
-        userId: req.user?.id,
-      }
-    });
-    if (!isAssignTo) throw new UnauthorizedException("Unauthorize ressource : please contact assignator", ErrorCode.UNAUTHORIZE);
+    // const isAssignTo = await prismaClient.transaction.findFirst({
+    //   where: {
+    //     id: id,
+    //     userId: req.user?.id,
+    //   }
+    // });
+    // if (!isAssignTo) throw new UnauthorizedException("Unauthorize ressource : please contact assignator", ErrorCode.UNAUTHORIZE);
 
     let data = req.body;
 
@@ -60,9 +77,10 @@ export const bulkCreate =
       ...item,
       amountUnpaid: parseInt(item.amountUnpaid),
       amountTopaid: parseInt(item.amountUnpaid) ?? 0,
-      transactionId: id
+      transactionId: transaction.id,
+      userId: user.id,
     }));
-    console.log(data);
+
     await prismaClient.transactionDetail.createMany({ data: data });
 
     res.status(201).json({
@@ -76,7 +94,7 @@ export const bulkCreate =
         userId: user.id,
         ipAddress: req.ip,
         action: EventType.TRANSACTION,
-        details: `User : ${user.email} added in transaction ID: ${id} new invoices : ${JSON.stringify(data)}`,
+        details: `User : ${user.email} added in transaction ID: ${id} new invoices : }`, // ${JSON.stringify(data)
         endpoint: 'transactions-details',
         source: SourceType.USER
       },
@@ -123,7 +141,6 @@ export const bulkUpdate =
     // await prismaClient.transactionDetail.updateMany({
     //   data: data,
     // });
-    console.log("", data, "data");
     await Promise.all(data.map(async (item) => {
       await prismaClient.transactionDetail.updateMany({
         where: {
@@ -219,7 +236,7 @@ export const create =
 
     //TODO: check if the user is the assignee of the record
 
-    const data = { ...req.body }
+    const data = { ...req.body, userId: req.user?.id }
 
     const request = await prismaClient.transactionDetail.create({ data: data });
 
@@ -347,8 +364,8 @@ export const softDelete =
       message: "Request soft deleted successfully",
     });
 
-     // Audit entry for tracking purpose
-     await prismaClient.audit.create({
+    // Audit entry for tracking purpose
+    await prismaClient.audit.create({
       data: {
         userId: user.id,
         ipAddress: req.ip,

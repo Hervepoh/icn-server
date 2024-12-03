@@ -12,10 +12,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.run_job = exports.update_document_entry_status = exports.add_document_entry = exports.generationIntegrationFile = exports.generationOfIntegrationFile = exports.getICN = exports.getICNGroupes = exports.getICNDematerializeCode = exports.getICNNextCode = void 0;
+exports.run_job = exports.clear_lock_users_transactions = exports.close_transaction_all_document_entry_status_integrated = exports.update_document_entry_status = exports.add_document_entry = exports.generationIntegrationFile = exports.generationIntegrationFilePerReference = exports.generationOfIntegrationFile = exports.getICN = exports.getICNGroupes = exports.getICNDematerializeCode = exports.getICNNextCode = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-const moment_1 = __importDefault(require("moment"));
+const moment_timezone_1 = __importDefault(require("moment-timezone"));
 const node_cron_1 = __importDefault(require("node-cron"));
 const request_1 = require("../constants/request");
 const prismadb_1 = __importDefault(require("../libs/prismadb"));
@@ -25,6 +25,7 @@ const http_exception_1 = require("../exceptions/http-exception");
 const log_1 = require("../libs/utils/log");
 const client_1 = require("@prisma/client");
 const internal_exception_1 = __importDefault(require("../exceptions/internal-exception"));
+const formatter_1 = require("../libs/utils/formatter");
 //---------------------------------------------------------
 //              GET ICN CODE 
 //---------------------------------------------------------
@@ -119,52 +120,113 @@ exports.generationOfIntegrationFile = generationOfIntegrationFile;
 //-----------------------------------------------
 //        generationIntegrationFile
 //-----------------------------------------------  
-const generationIntegrationFile = () => __awaiter(void 0, void 0, void 0, function* () {
-    (0, log_1.writeLogEntry)('JOB : generationIntegrationFile --> start', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+const generationIntegrationFilePerReference = () => __awaiter(void 0, void 0, void 0, function* () {
+    // writeLogEntry('JOB : generationIntegrationFile --> start', LogLevel.INFO, LogType.GENERAL);
     // Fetch data from the database
     const documents = yield prismadb_1.default.integrationDocument.findMany({
         where: { integration_status: client_1.EventIntegrationType.WAIT_GENERATION }
     });
     // Early exit if no documents found
     if (documents.length === 0) {
-        (0, log_1.writeLogEntry)('JOB : generationIntegrationFile --> No documents with WAIT_GENERATION status found.', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
-        (0, log_1.writeLogEntry)('JOB : generationIntegrationFile --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+        //console.log("No documents with WAIT_GENERATION status");
+        // writeLogEntry('JOB : generationIntegrationFile --> No documents with WAIT_GENERATION status found.', LogLevel.INFO, LogType.GENERAL);
+        //writeLogEntry('JOB : generationIntegrationFile --> end', LogLevel.INFO, LogType.GENERAL);
         return null;
     }
-    // Création du contenu du fichier CSV
-    let csvContent = `File Generated on=${(0, moment_1.default)().format('ddd MMM DD HH:mm:ss Z YYYY')}\nData for Date=${(0, moment_1.default)().format('DD/MM/YYYY')}|5701473|640816|3\n`;
-    csvContent += 'Transaction_ID|Sub_transaction_Type|Bill_Partner_Company_name|Bill_partner_company_code|Bill_Number|Bill_Account_Number|Bill_Due_Date|Paid_Amount|Paid_Date|Paid_By_MSISDN|Transaction_Status|OM_Bill_Payment_Status\n';
+    // Calculate total paid amount
+    const totalPaidAmount = documents.reduce((sum, document) => sum + parseInt(document.paid_amount || '0', 10), 0);
+    // Create CSV content
+    const timestamp = (0, moment_timezone_1.default)().tz("Africa/Douala");
+    let csvContent = `File Generated on=${timestamp.format('ddd MMM DD HH:mm:ss [WAT] YYYY')}\n` +
+        `Data for Date=${timestamp.format('DD/MM/YYYY')}|5701473|${totalPaidAmount}|${documents.length}\n` +
+        'Transaction_ID|Sub_transaction_Type|Bill_Partner_Company_name|Bill_partner_company_code|Bill_Number|Bill_Account_Number|Bill_Due_Date|Paid_Amount|Paid_Date|Paid_By_MSISDN|Transaction_Status|OM_Bill_Payment_Status\n';
     documents.forEach((doc) => {
         csvContent += `${doc.transaction_id}|${doc.sub_transaction_type}|${doc.bill_partner_company_name}|${doc.bill_partner_company_code}|${doc.bill_number}|${doc.bill_account_number}||${doc.paid_amount}|${doc.paid_date}|${doc.paid_by_msisdn}|${doc.transaction_status}|${doc.om_bill_payment_status}\n`;
     });
-    // Génération du nom de fichier
-    const timestamp = (0, moment_1.default)().format('MMDDYYYYHHmmss');
-    const fileName = `AES_${timestamp}_PAIDBILLS.csv`;
-    // Génération du chemin du fichier
+    // Generate file name and path
+    const fileName = `AES_${timestamp.format('MMDDYYYYHHmmss')}_PAIDBILLS.csv`;
     const outputDir = path_1.default.join(__dirname, '../../output');
     const filePath = path_1.default.join(outputDir, fileName);
-    // Créer le répertoire 'output' s'il n'existe pas
+    // Create 'output' directory if it doesn't exist
     if (!fs_1.default.existsSync(outputDir)) {
-        fs_1.default.mkdirSync(outputDir);
+        fs_1.default.mkdirSync(outputDir, { recursive: true }); // Using recursive option for safety
     }
-    // Écriture du fichier
+    // Write the CSV file
     fs_1.default.writeFileSync(filePath, csvContent);
-    // Update the status of each document in the documents array to ONGOING
+    // Update the status of each document to GENERATED
     const documentIds = documents.map(doc => doc.id); // Extract the IDs of the documents
     yield prismadb_1.default.integrationDocument.updateMany({
         where: { id: { in: documentIds } },
         data: { integration_status: client_1.EventIntegrationType.GENERATED }
     });
     (0, log_1.writeLogEntry)(`JOB : generationIntegrationFile --> updateMany ${documentIds.length} integrationDocument to GENERATED`, log_1.LogLevel.INFO, log_1.LogType.GENERAL, documentIds);
-    (0, log_1.writeLogEntry)('JOB : generationIntegrationFile --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+    // writeLogEntry('JOB : generationIntegrationFile --> end', LogLevel.INFO, LogType.GENERAL);
     return filePath;
+});
+exports.generationIntegrationFilePerReference = generationIntegrationFilePerReference;
+const generationIntegrationFile = () => __awaiter(void 0, void 0, void 0, function* () {
+    // writeLogEntry('JOB : generationIntegrationFile --> start', LogLevel.INFO, LogType.GENERAL);
+    // Fetch data from the database
+    const documents = yield prismadb_1.default.integrationDocument.findMany({
+        where: { integration_status: client_1.EventIntegrationType.WAIT_GENERATION }
+    });
+    // Early exit if no documents found
+    if (documents.length === 0) {
+        // writeLogEntry('JOB : generationIntegrationFile --> No documents with WAIT_GENERATION status found.', LogLevel.INFO, LogType.GENERAL);
+        return null;
+    }
+    // Group documents by reference
+    const groupedDocuments = documents.reduce((groups, document) => {
+        const reference = document.reference; // Remplacez 'reference' par le nom de la propriété qui contient votre référence
+        if (!groups[reference]) {
+            groups[reference] = [];
+        }
+        groups[reference].push(document);
+        return groups;
+    }, {});
+    // Generate CSV files for each reference group
+    const filePaths = [];
+    for (const reference of Object.keys(groupedDocuments)) {
+        const timestamp = (0, moment_timezone_1.default)().tz("Africa/Douala");
+        const docs = groupedDocuments[reference];
+        const totalPaidAmount = docs.reduce((sum, doc) => sum + parseInt(doc.paid_amount || '0', 10), 0);
+        // Create CSV content
+        let csvContent = `File Generated on=${timestamp.format('ddd MMM DD HH:mm:ss [WAT] YYYY')}\n` +
+            `Data for Date=${timestamp.format('DD/MM/YYYY')}|5701473|${totalPaidAmount}|${docs.length}\n` +
+            'Transaction_ID|Sub_transaction_Type|Bill_Partner_Company_name|Bill_partner_company_code|Bill_Number|Bill_Account_Number|Bill_Due_Date|Paid_Amount|Paid_Date|Paid_By_MSISDN|Transaction_Status|OM_Bill_Payment_Status\n';
+        docs.forEach((doc) => {
+            csvContent += `${doc.transaction_id}|${doc.sub_transaction_type}|${doc.bill_partner_company_name}|${doc.bill_partner_company_code}|${doc.bill_number}|${doc.bill_account_number}||${doc.paid_amount}|${doc.paid_date}|${doc.paid_by_msisdn}|${doc.transaction_status}|${doc.om_bill_payment_status}\n`;
+        });
+        // Generate file name and path
+        const fileName = `AES_${timestamp.format('MMDDYYYY_HHmmss')}_PAIDBILLS.csv`; // Inclure la référence dans le nom de fichier
+        const outputDir = path_1.default.join(__dirname, '../../output');
+        const filePath = path_1.default.join(outputDir, fileName);
+        // Create 'output' directory if it doesn't exist
+        if (!fs_1.default.existsSync(outputDir)) {
+            fs_1.default.mkdirSync(outputDir, { recursive: true }); // Using recursive option for safety
+        }
+        // Write the CSV file
+        fs_1.default.writeFileSync(filePath, csvContent);
+        filePaths.push(filePath);
+        // Attendre 1 seconde entre chaque génération de fichier
+        yield new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    // Update the status of each document to GENERATED
+    const documentIds = documents.map(doc => doc.id); // Extract the IDs of the documents
+    yield prismadb_1.default.integrationDocument.updateMany({
+        where: { id: { in: documentIds } },
+        data: { integration_status: client_1.EventIntegrationType.GENERATED }
+    });
+    (0, log_1.writeLogEntry)(`JOB : generationIntegrationFile --> updateMany ${documentIds.length} integrationDocument to GENERATED`, log_1.LogLevel.INFO, log_1.LogType.GENERAL, documentIds);
+    // writeLogEntry('JOB : generationIntegrationFile --> end', LogLevel.INFO, LogType.GENERAL);
+    return filePaths; // Retourner les chemins des fichiers générés
 });
 exports.generationIntegrationFile = generationIntegrationFile;
 //-----------------------------------------------
-//        add_document_entry
+//        For each invoice, add payment document entry
 //-----------------------------------------------  
 const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () {
-    (0, log_1.writeLogEntry)('JOB : add_document_entry --> start', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+    // writeLogEntry('JOB : add_document_entry --> start', LogLevel.INFO, LogType.GENERAL);
     try {
         const documents = yield prismadb_1.default.$queryRaw `
       SELECT td.*,t.reference
@@ -173,11 +235,12 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
       WHERE t.statusId = 8
         AND td.selected = 1
         AND td.id NOT IN (SELECT transactionDetailsId FROM integration_documents)
+      ORDER BY t.reference ASC
     `;
         // If no documents found, exit early
         if (documents.length === 0) {
-            (0, log_1.writeLogEntry)('JOB : add_document_entry --> No documents to process.', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
-            (0, log_1.writeLogEntry)('JOB : add_document_entry --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+            // writeLogEntry('JOB : add_document_entry --> No documents to process.', LogLevel.INFO, LogType.GENERAL);
+            // writeLogEntry('JOB : add_document_entry --> end', LogLevel.INFO, LogType.GENERAL);
             return;
         }
         // Batch check existing documents
@@ -187,6 +250,7 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
             },
             select: { transactionDetailsId: true }
         }).then(existing => existing.map(doc => doc.transactionDetailsId));
+        const timestamp = (0, moment_timezone_1.default)().tz("Africa/Douala");
         // Prepare data for creation
         const integrationDocuments = documents
             .filter((document) => !existingIds.includes(document.id))
@@ -194,7 +258,7 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
             reference: document.reference,
             transactionId: document.transactionId,
             transactionDetailsId: document.id,
-            transaction_id: `AC${(0, moment_1.default)().format('DDMMYYYY')}.${(0, moment_1.default)().format('HHmm')}.I${String(index + 1).padStart(5, '0')}`,
+            transaction_id: `AC${(0, formatter_1.formatReference)(document.reference)}.I${String(index + 1).padStart(4, '0')}`,
             sub_transaction_type: "BILL Payment",
             bill_partner_company_name: "AES",
             bill_partner_company_code: "AES",
@@ -202,7 +266,7 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
             bill_account_number: document.contract,
             bill_due_date: " ", // Handle appropriately
             paid_amount: document.amountTopaid.toString(),
-            paid_date: (0, moment_1.default)().format('DD/MM/YYYY HH:mm:ss'),
+            paid_date: timestamp.format('DD/MM/YYYY HH:mm:ss'),
             paid_by_msisdn: "724113114",
             transaction_status: "Success",
             om_bill_payment_status: "Bill Paid",
@@ -244,7 +308,7 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
         //     writeLogEntry("Document already exists", LogLevel.ERROR, LogType.GENERAL, [exist]);
         //   }
         // }
-        (0, log_1.writeLogEntry)('JOB : add_document_entry --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+        // writeLogEntry('JOB : add_document_entry --> end', LogLevel.INFO, LogType.GENERAL);
     }
     catch (error) {
         (0, log_1.writeLogEntry)("JOB : add_document_entry --> Fail to generate document", log_1.LogLevel.ERROR, log_1.LogType.GENERAL, [error]);
@@ -252,24 +316,25 @@ const add_document_entry = () => __awaiter(void 0, void 0, void 0, function* () 
 });
 exports.add_document_entry = add_document_entry;
 //---------------------------------------------------------
-//         update_document_entry_status
+//         For each invoice, retrieve CMS integration status and update ICN
 //---------------------------------------------------------
 const update_document_entry_status = () => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    (0, log_1.writeLogEntry)('JOB : update_document_entry_status --> start', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+    // writeLogEntry('JOB : update_document_entry_status --> start', LogLevel.INFO, LogType.GENERAL);
     try {
-        const documents = yield prismadb_1.default.$queryRaw `
-    SELECT *
+        const query = `SELECT *
     FROM transactions t 
     JOIN transaction_details td ON td.transactionId = t.id
     JOIN integration_documents id ON td.id = id.transactionDetailsId
     WHERE t.statusId = 8
     AND td.selected = 1
+    AND id.integration_status in ('${client_1.EventIntegrationType.GENERATED}','${client_1.EventIntegrationType.PENDING}','${client_1.EventIntegrationType.ONGOING}','${client_1.EventIntegrationType.ONGOING_WITH_ISSUE}')  
   `;
+        const documents = yield prismadb_1.default.$queryRawUnsafe(query);
         // Early exit if no documents found
         if (documents.length === 0) {
-            (0, log_1.writeLogEntry)('JOB : update_document_entry_status --> No documents to process.', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
-            (0, log_1.writeLogEntry)('JOB : update_document_entry_status --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+            // writeLogEntry('JOB : update_document_entry_status --> No documents to process.', LogLevel.INFO, LogType.GENERAL);
+            // writeLogEntry('JOB : update_document_entry_status --> end', LogLevel.INFO, LogType.GENERAL);
             return null;
         }
         const statusMap = {
@@ -280,7 +345,6 @@ const update_document_entry_status = () => __awaiter(void 0, void 0, void 0, fun
         const transactionStatusUpdates = {};
         // loop on all transactions and documents
         for (const document of documents) {
-            //console.log(document);
             const result = yield (0, db_oracle_1.executeQuery)(request_1.sqlQuery.icn_search_bill_status, [document.bill_number]);
             const statusKey = ((_b = (_a = result === null || result === void 0 ? void 0 : result.rows) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b[1]) || null;
             let newStatus;
@@ -293,36 +357,61 @@ const update_document_entry_status = () => __awaiter(void 0, void 0, void 0, fun
             }
             else {
                 newStatus = client_1.EventIntegrationType.PENDING;
-                (0, log_1.writeLogEntry)(`JOB : update_document_entry_status --> Unknown status key: ${statusKey} for document ID: ${document.id}.`, log_1.LogLevel.INFO);
+                // writeLogEntry(`JOB : update_document_entry_status --> Unknown status key: ${statusKey} for document ID: ${document.id}.`, LogLevel.INFO);
                 yield prismadb_1.default.integrationDocument.update({
                     where: { id: document.id },
                     data: { integration_status: newStatus }
                 });
             }
-            // Track the integration status for the transaction
-            const transactionId = document.transactionId;
-            if (!transactionStatusUpdates[transactionId]) {
-                transactionStatusUpdates[transactionId] = [];
-            }
-            transactionStatusUpdates[transactionId].push({
-                id: document.id,
-                status: newStatus
-            });
         }
-        // Update each transaction if all associated integration documents are INTEGRATED
-        const updatePromises = Object.keys(transactionStatusUpdates).map((transactionId) => __awaiter(void 0, void 0, void 0, function* () {
-            const statuses = transactionStatusUpdates[transactionId];
-            const allIntegrated = statuses.every(item => item.status === client_1.EventIntegrationType.INTEGRATED);
-            if (allIntegrated) {
+        //writeLogEntry('JOB : update_document_entry_status --> end', LogLevel.INFO, LogType.GENERAL);
+    }
+    catch (error) {
+        (0, log_1.writeLogEntry)("JOB : update_document_entry_status --> Fail to update document entry", log_1.LogLevel.ERROR, log_1.LogType.GENERAL, [error]);
+    }
+});
+exports.update_document_entry_status = update_document_entry_status;
+//---------------------------------------------------------
+//         For each invoice, retrieve CMS integration status and update ICN
+//---------------------------------------------------------
+const close_transaction_all_document_entry_status_integrated = () => __awaiter(void 0, void 0, void 0, function* () {
+    // writeLogEntry('JOB : update_document_entry_status --> start', LogLevel.INFO, LogType.GENERAL);
+    try {
+        const transactions = yield prismadb_1.default.transaction.findMany({
+            where: { statusId: 8 },
+            select: { id: true, reference: true }
+        });
+        for (const transaction of transactions) {
+            console.log("Transaction ID:", transaction.reference);
+            const nb = yield prismadb_1.default.transactionDetail.count({
+                where: {
+                    AND: [
+                        { transactionId: transaction.id },
+                        { selected: true }
+                    ]
+                },
+            });
+            console.log("Number of selected details:", nb);
+            const nbValidate = yield prismadb_1.default.integrationDocument.count({
+                where: {
+                    AND: [
+                        { transactionId: transaction.id },
+                        { integration_status: client_1.EventIntegrationType.INTEGRATED }
+                    ]
+                },
+            });
+            console.log("Number of validated documents:", nbValidate);
+            if (nb === nbValidate) {
+                // Update transaction
                 const updatedTransaction = yield prismadb_1.default.transaction.update({
-                    where: { id: transactionId },
+                    where: { id: transaction.id },
                     data: { statusId: 9 }
                 });
                 //Notify the key account manager and the person who create the transaction
                 // Prepare notifications for the key account manager and the user who created the transaction
                 const usersToNotify = [
-                    { id: updatedTransaction.userId, subject: "Transaction Treated and Integrated", message: `Transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. You can edit the fog (Brouillard) for more details.` },
-                    { id: updatedTransaction.createdBy, subject: "Transaction Treated and Integrated", message: `Your transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. You can edit the fog (Brouillard) for more details.` }
+                    { id: updatedTransaction.userId, subject: "Transaction Treated and Integrated", message: `Transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS.Now You can edit the fog (Brouillard) for more details.` },
+                    { id: updatedTransaction.createdBy, subject: "Transaction Treated and Integrated", message: `Your transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. Now You can edit the fog (Brouillard) for more details.` }
                 ];
                 // Notify users
                 yield Promise.all(usersToNotify.map((_a) => __awaiter(void 0, [_a], void 0, function* ({ id, subject, message }) {
@@ -341,18 +430,143 @@ const update_document_entry_status = () => __awaiter(void 0, void 0, void 0, fun
                         }
                     }
                 })));
-                (0, log_1.writeLogEntry)('JOB : update_document_entry_status --> updaye', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
             }
-        }));
-        // Wait for all updates to complete
-        yield Promise.all(updatePromises);
-        (0, log_1.writeLogEntry)('JOB : update_document_entry_status --> end', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+        }
+        // const transactionStatusUpdates: { [transactionId: string]: { id: number, status: EventIntegrationType }[] } = {};
+        // // loop on all transactions and documents
+        // for (const document of documents) {
+        //   const result = await executeQuery(sqlQuery.icn_search_bill_status, [document.bill_number]);
+        //   const statusKey = result?.rows?.[0]?.[1] || null;
+        //   // console.log("document.bill_number",document.bill_number,"document.integration_status",document.integration_status,"statusKey",statusKey)
+        //   let newStatus;
+        //   if (statusKey && statusMap[statusKey]) {
+        //     newStatus = statusMap[statusKey];
+        //     await prismaClient.integrationDocument.update({
+        //       where: { id: document.id },
+        //       data: { integration_status: newStatus }
+        //     });
+        //   } else {
+        //     newStatus = EventIntegrationType.PENDING;
+        //     // writeLogEntry(`JOB : update_document_entry_status --> Unknown status key: ${statusKey} for document ID: ${document.id}.`, LogLevel.INFO);
+        //     await prismaClient.integrationDocument.update({
+        //       where: { id: document.id },
+        //       data: { integration_status: newStatus }
+        //     });
+        //   }
+        //   // Track the integration status for the transaction
+        //   const transactionId = document.transactionId;
+        //   if (!transactionStatusUpdates[transactionId]) {
+        //     transactionStatusUpdates[transactionId] = [];
+        //   }
+        //   transactionStatusUpdates[transactionId].push({
+        //     id: document.id,
+        //     status: newStatus
+        //   });
+        // }
+        // // Update each transaction if all associated integration documents are INTEGRATED
+        // const updatePromises = Object.keys(transactionStatusUpdates).map(async (transactionId) => {
+        //   const statuses = transactionStatusUpdates[transactionId];
+        //   const allIntegrated = statuses.every(item => item.status === EventIntegrationType.INTEGRATED);
+        //   if (allIntegrated) {
+        //     const updatedTransaction = await prismaClient.transaction.update({
+        //       where: { id: transactionId },
+        //       data: { statusId: 9 }
+        //     });
+        //     //Notify the key account manager and the person who create the transaction
+        //     // Prepare notifications for the key account manager and the user who created the transaction
+        //     const usersToNotify = [
+        //       { id: updatedTransaction.userId, subject: "Transaction Treated and Integrated", message: `Transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. You can edit the fog (Brouillard) for more details.` },
+        //       { id: updatedTransaction.createdBy, subject: "Transaction Treated and Integrated", message: `Your transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. You can edit the fog (Brouillard) for more details.` }
+        //     ];
+        //     // Notify users
+        //     await Promise.all(usersToNotify.map(async ({ id, subject, message }) => {
+        //       if (id) {
+        //         const user = await prismaClient.user.findFirst({ where: { id } });
+        //         if (user) {
+        //           await prismaClient.notification.create({
+        //             data: {
+        //               email: user.email,
+        //               message,
+        //               method: NotificationMethod.EMAIL,
+        //               subject,
+        //               template: "notification.mail.ejs",
+        //             },
+        //           });
+        //         }
+        //       }
+        //     }));
+        //     writeLogEntry('JOB : update_document_entry_status --> updaye', LogLevel.INFO, LogType.GENERAL,);
+        //   }
+        // });
+        // // Wait for all updates to complete
+        // await Promise.all(updatePromises);
+        //writeLogEntry('JOB : update_document_entry_status --> end', LogLevel.INFO, LogType.GENERAL);
     }
     catch (error) {
         (0, log_1.writeLogEntry)("JOB : update_document_entry_status --> Fail to update document entry", log_1.LogLevel.ERROR, log_1.LogType.GENERAL, [error]);
     }
 });
-exports.update_document_entry_status = update_document_entry_status;
+exports.close_transaction_all_document_entry_status_integrated = close_transaction_all_document_entry_status_integrated;
+//-----------------------------------------------
+//        lock_users_transaction
+//-----------------------------------------------  
+const clear_lock_users_transactions = () => __awaiter(void 0, void 0, void 0, function* () {
+    (0, log_1.writeLogEntry)('JOB : clearLock --> start', log_1.LogLevel.INFO, log_1.LogType.GENERAL);
+    // Fetch data from the database
+    const documents = yield prismadb_1.default.transactionTempUser.deleteMany();
+    // selectionner tous les utilisateurs qui ne sont pas connecter 
+    // pour tous les utilisateur non connecter supprimer le lock
+});
+exports.clear_lock_users_transactions = clear_lock_users_transactions;
+//-----------------------------------------------
+//        FTP transfert payment file
+//-----------------------------------------------  
+// import { FTPClient } from 'basic-ftp';
+// // Configuration
+// const FTP_HOST = '10.111.108.153' //'ftp.example.com';
+// const FTP_USER = 'your_username';
+// const FTP_PASS = 'your_password';
+// const LOCAL_DIR = '../../output'; //'/path/to/local/files';
+// const REMOTE_DIR = '/home/sys_emoney/sonel_tparties/aci/paid';
+// const SAVE_DIR = '../../output/send';
+// // Fonction pour envoyer des fichiers via FTP
+// async function sendFiles() {
+//     const client = new FTPClient();
+//     try {
+//         await client.access({
+//             host: FTP_HOST,
+//             user: FTP_USER,
+//             password: FTP_PASS,
+//             secure: false, // Changez à true si vous utilisez FTPS
+//         });
+//         await client.cd(REMOTE_DIR);
+//         const files = fs.readdirSync(LOCAL_DIR);
+//         for (const file of files) {
+//             const localFilePath = path.join(LOCAL_DIR, file);
+//             const saveFilePath = path.join(SAVE_DIR, file);
+//             if (fs.statSync(localFilePath).isFile()) {
+//                 console.log(`Transferring ${file}...`);
+//                 await client.uploadFrom(localFilePath, file);
+//                 console.log(`Successfully transferred ${file}`);
+//                 // Déplacer le fichier vers le répertoire "save"
+//                 fs.renameSync(localFilePath, saveFilePath);
+//                 console.log(`Moved ${file} to save directory`);
+//             }
+//         }
+//     } catch (error) {
+//         console.error(`Error during FTP transfer: ${error}`);
+//     } finally {
+//         client.close();
+//     }
+// }
+// // Planifier la tâche cron
+// cron.schedule('0 2 * * *', () => {
+//     console.log('Running scheduled task...');
+//     sendFiles();
+// }, {
+//     scheduled: true,
+//     timezone: "Europe/Paris" // Ajustez selon votre fuseau horaire
+// });
 //-----------------------------------------------
 //        add_document_entry document
 //-----------------------------------------------
@@ -360,11 +574,21 @@ node_cron_1.default.schedule('* * * * * *', () => __awaiter(void 0, void 0, void
 //---------------------------------------------------------
 //              generate_document
 //---------------------------------------------------------
-node_cron_1.default.schedule('0 */2 * * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("generate_document", exports.generationIntegrationFile); }));
+// cron.schedule('0 */2 * * * *', async () => await run_job("generate_document", generationIntegrationFile));
+node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("generate_document", exports.generationIntegrationFile); }));
 //-----------------------------------------------
-//        update_document_entry_status document
+//        Job for each invoice, retrieve CMS integration status and update ICN
 //-----------------------------------------------
-node_cron_1.default.schedule('* * * * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("update_document_entry_status", exports.update_document_entry_status); }));
+// cron.schedule('*/30 * * * *', async () => await run_job("update_document_entry_status", update_document_entry_status));
+node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("update_document_entry_status", exports.update_document_entry_status); }));
+//-----------------------------------------------
+//       Job for closing the ticket where all invoices documents are integrated into CMS
+//-----------------------------------------------
+node_cron_1.default.schedule('* * * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("close_transaction_all_document_entry_status_integrated", exports.close_transaction_all_document_entry_status_integrated); }));
+//-----------------------------------------------
+//       Job for clearing user lock transactions
+//-----------------------------------------------
+node_cron_1.default.schedule('0 16,05 * * *', () => __awaiter(void 0, void 0, void 0, function* () { return yield (0, exports.run_job)("clear_lock_users_transactions", exports.clear_lock_users_transactions); }));
 const run_job = (job_name, job) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const lock = yield prismadb_1.default.jobLock.findUnique({ where: { job_name } });
