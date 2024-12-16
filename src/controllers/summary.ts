@@ -175,7 +175,9 @@ async function fetchSummaryGobalData(from: Date, to: Date) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-      t.regionId;
+      t.regionId
+  ORDER BY 
+    r.name ASC;
 `
   const region: any = await prismaClient.$queryRawUnsafe(region_Query);
 
@@ -196,7 +198,9 @@ async function fetchSummaryGobalData(from: Date, to: Date) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-      t.regionId,t.statusId;
+      t.regionId,t.statusId
+  ORDER BY 
+    r.name ASC, s.name ASC;
 `
   const per_region: any = await prismaClient.$queryRawUnsafe(transactions_per_region_Query);
 
@@ -220,7 +224,9 @@ async function fetchSummaryGobalData(from: Date, to: Date) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-     r.name, u.name, s.name;
+     r.name, u.name, s.name
+  ORDER BY 
+    r.name ASC, u.name ASC, s.name ASC;
 `
   const per_unit: any = await prismaClient.$queryRawUnsafe(transactions_per_unit_Query);
 

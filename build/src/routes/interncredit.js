@@ -50,5 +50,6 @@ interncreditRoutes.get("/documents", [
     auth_1.default,
     (0, auth_1.authorizeMiddleware)(`${serviceName}-READ`, `${serviceName}-DOCUMENTS`),
 ], (0, error_handler_1.errorHandler)(icn_1.generationOfIntegrationFile));
-interncreditRoutes.get("/test", (0, error_handler_1.errorHandler)(icn_1.close_transaction_all_document_entry_status_integrated));
+interncreditRoutes.get("/brouillard/:reference", (0, error_handler_1.errorHandler)(icn_1.transaction_brouillard_generation));
+interncreditRoutes.get("/test", (0, error_handler_1.errorHandler)(icn_1.update_document_entry_status));
 exports.default = interncreditRoutes;

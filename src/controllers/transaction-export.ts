@@ -18,10 +18,12 @@ export const exportData =
             where: { id: id },
             select: {
                 id: true,
+                reference: true,
                 name: true,
                 amount: true,
                 paymentDate: true,
                 statusId: true,
+                isReceiptReady:true,
             }
         });
         if (!transaction) throw new NotFoundException("Not Found", ErrorCode.RESSOURCE_NOT_FOUND);
@@ -45,11 +47,13 @@ export const exportData =
         return res.status(200).json({
             success: true,
             data: {
+                isReceiptReady: transaction?.isReceiptReady,
                 status: transaction?.statusId,
                 paymentDate: transaction?.paymentDate,
                 numberOfBills: Number(result[0]?.numberOfBills),
                 totalAmount: Number(result[0]?.totalAmount),
                 customerName: transaction.name,
+                reference: transaction.reference,
                 transactions
             }
         });

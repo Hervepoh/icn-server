@@ -7,14 +7,22 @@ exports.idSchema = idSchema;
 const signUpSchema = zod_1.z.object({
     name: zod_1.z.string(),
     email: zod_1.z.string().email(),
+    unitId: zod_1.z.string().nullable().optional(),
     password: zod_1.z.string().min(6),
-    roleId: zod_1.z.string().optional()
+    ldap: zod_1.z.boolean().optional(),
+    roleId: zod_1.z.union([
+        zod_1.z.string(), // Pour un seul rôle
+        zod_1.z.array(zod_1.z.string()) // Pour plusieurs rôles
+    ]).optional() // Rendre cette propriété optionnelle
 });
 exports.signUpSchema = signUpSchema;
 const updateSchema = zod_1.z.object({
     name: zod_1.z.string().min(3).optional(),
     email: zod_1.z.string().email().optional(),
+    unitId: zod_1.z.string().nullable().optional(),
     password: zod_1.z.string().min(6).optional(),
+    ldap: zod_1.z.boolean().optional(),
+    roleId: zod_1.z.array(zod_1.z.string()).optional() // Rendre cette propriété optionnelle
 });
 exports.updateSchema = updateSchema;
 const userRoleSchema = zod_1.z.object({

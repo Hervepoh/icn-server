@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAIL_NO_REPLY = exports.MAIL_DOMAIN = exports.SMTP_PASSWORD = exports.SMTP_MAIL = exports.SMTP_CIPHERS = exports.SMTP_PORT = exports.SMTP_HOST = exports.SMTP_SERVICE = exports.REDIS_SESSION_EXPIRE = exports.REDIS_PASSWORD = exports.REDIS_PORT = exports.REDIS_HOSTNAME = exports.DATABASE_EXTERNAL_PASSWORD = exports.DATABASE_EXTERNAL_USERNAME = exports.DATABASE_EXTERNAL_PORT = exports.DATABASE_EXTERNAL_HOSTNAME = exports.DATABASE_EXTERNAL_SERVICE_NAME = exports.REFRESH_TOKEN_EXPIRE = exports.REFRESH_TOKEN_SECRET = exports.ACCESS_TOKEN_EXPIRE = exports.ACCESS_TOKEN_SECRET = exports.ACTIVATION_TOKEN_EXPIRE = exports.ACTIVATION_TOKEN_SECRET = exports.SALT_ROUNDS = exports.NODE_ORIGIN = exports.PORT = void 0;
+exports.MAIL_NO_REPLY = exports.MAIL_DOMAIN = exports.SMTP_PASSWORD = exports.SMTP_MAIL = exports.SMTP_CIPHERS = exports.SMTP_PORT = exports.SMTP_HOST = exports.SMTP_SERVICE = exports.REDIS_SESSION_EXPIRE = exports.REDIS_PASSWORD = exports.REDIS_PORT = exports.REDIS_HOSTNAME = exports.SCRIPT_GENERATION_BROUILLARD_OUTPUT = exports.SCRIPT_GENERATION_BROUILLARD = exports.DATABASE_EXTERNAL_PASSWORD = exports.DATABASE_EXTERNAL_USERNAME = exports.DATABASE_EXTERNAL_PORT = exports.DATABASE_EXTERNAL_HOSTNAME = exports.DATABASE_EXTERNAL_SERVICE_NAME = exports.REFRESH_TOKEN_EXPIRE = exports.REFRESH_TOKEN_SECRET = exports.ACCESS_TOKEN_EXPIRE = exports.ACCESS_TOKEN_SECRET = exports.ACTIVATION_TOKEN_EXPIRE = exports.ACTIVATION_TOKEN_SECRET = exports.SALT_ROUNDS = exports.NODE_ORIGIN = exports.PORT = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config({ path: '.env' });
 exports.PORT = process.env.NODE_PORT;
@@ -20,6 +20,8 @@ exports.DATABASE_EXTERNAL_HOSTNAME = process.env.DATABASE_EXTERNAL_HOSTNAME || "
 exports.DATABASE_EXTERNAL_PORT = process.env.DATABASE_EXTERNAL_PORT || "";
 exports.DATABASE_EXTERNAL_USERNAME = process.env.DATABASE_EXTERNAL_USERNAME || "";
 exports.DATABASE_EXTERNAL_PASSWORD = process.env.DATABASE_EXTERNAL_PASSWORD || "";
+exports.SCRIPT_GENERATION_BROUILLARD = process.env.SCRIPT_GENERATION_BROUILLARD || "/u02/VAS_APPS/Generate_Brouillards/ExtractBrouillard.groovy";
+exports.SCRIPT_GENERATION_BROUILLARD_OUTPUT = process.env.SCRIPT_GENERATION_BROUILLARD_OUTPUT || "/u02/VAS_APPS/Generate_Brouillards/BACKUP_DIR/BROUILLARDS/5701473/";
 exports.REDIS_HOSTNAME = process.env.REDIS_HOSTNAME;
 exports.REDIS_PORT = process.env.REDIS_PORT;
 exports.REDIS_PASSWORD = process.env.REDIS_PASSWORD;

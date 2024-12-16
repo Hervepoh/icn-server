@@ -1,5 +1,5 @@
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -57,6 +57,8 @@ model User {
   segmentId                 String?               @db.Char(36)
   createdAt                 DateTime              @default(now()) @map("created_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
+  deleted                   Boolean               @default(false)
+  deletedAt                 DateTime?
   Audit                     Audit[]
   transactionDetails        TransactionDetail[]
   assignedTransactions      Transaction[]         @relation("TransactionAssignator")
@@ -127,6 +129,7 @@ model Transaction {
   paymentModeId             String                @db.Char(36)
   description               String?               @db.VarChar(255)
   statusId                  Int                   @default(1)
+  isReceiptReady            Boolean               @default(false)
   validatorId               String?               @db.Char(36)
   validatedAt               DateTime?
   assignBy                  String?               @db.Char(36)
@@ -231,15 +234,14 @@ model IntegrationDocument {
 }
 
 model IntegrationDocumentHistory {
-  id                        Int                  @id @default(autoincrement())
-  IntegrationDocument       Int
-  reference                 String
-  integration_status        EventIntegrationType
-  createdAt                 DateTime             @default(now()) @map("created_at")
+  id                  Int                  @id @default(autoincrement())
+  IntegrationDocument Int
+  reference           String
+  integration_status  EventIntegrationType
+  createdAt           DateTime             @default(now()) @map("created_at")
 
   @@map("integration_documents_history")
 }
-
 
 model Audit {
   id        Int        @id @default(autoincrement())

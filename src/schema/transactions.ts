@@ -5,8 +5,8 @@ const idSchema = z.string().uuid();
 const createSchema = z.object({
   name: z.string()
     .min(1, 'Customer name is required')
-    .max(100, { message: "Customer name Less than 100 caracters." })
-    .regex(/^[a-zA-Z0-9\s\-\+\*\|\\_\#\&]+$/, { message: "The customer name can only contain letters, numbers, and spaces." }),
+    .max(100, { message: "Customer name Less than 100 caracters." }),
+    //.regex(/^[a-zA-Z0-9\s\-\+\*\|\\_\#\&]+$/, { message: "The customer name can only contain letters, numbers, and spaces." }),
   amount: z.number().positive(),
   bank: z.string().uuid('Bank input format is not available'),
   payment_date: z.string().min(1, "Payment date is required"),
@@ -16,9 +16,9 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   name: z.string()
-    .min(1, 'Bank name is required')
-    .max(100, { message: "Bank name Less than 100 caracters." })
-    .regex(/^[a-zA-Z0-9\s\-\+\*\|\\_\#\&]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." })
+    .min(1, 'Customer name is required')
+    .max(100, { message: "Customer name Less than 100 caracters." })
+    //.regex(/^[a-zA-Z0-9\s\-\+\*\|\\_\#\&]+$/, { message: "The transaction name can only contain letters, numbers, and spaces." })
     .optional(),
   amount: z.number().positive().optional(),
   bankId: z.string().uuid().optional(),

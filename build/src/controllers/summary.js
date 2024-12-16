@@ -159,7 +159,9 @@ function fetchSummaryGobalData(from, to) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-      t.regionId;
+      t.regionId
+  ORDER BY 
+    r.name ASC;
 `;
         const region = yield prismadb_1.default.$queryRawUnsafe(region_Query);
         const transactions_per_region_Query = `
@@ -179,7 +181,9 @@ function fetchSummaryGobalData(from, to) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-      t.regionId,t.statusId;
+      t.regionId,t.statusId
+  ORDER BY 
+    r.name ASC, s.name ASC;
 `;
         const per_region = yield prismadb_1.default.$queryRawUnsafe(transactions_per_region_Query);
         const transactions_per_unit_Query = `
@@ -202,7 +206,9 @@ function fetchSummaryGobalData(from, to) {
       t.statusId <> 2 AND 
       t.paymentDate BETWEEN '${fromDate}' AND '${toDate}'
   GROUP BY 
-     r.name, u.name, s.name;
+     r.name, u.name, s.name
+  ORDER BY 
+    r.name ASC, u.name ASC, s.name ASC;
 `;
         const per_unit = yield prismadb_1.default.$queryRawUnsafe(transactions_per_unit_Query);
         return {

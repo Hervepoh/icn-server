@@ -182,6 +182,9 @@ const signin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     if (!user) {
         throw new not_found_1.default("Invalid Email or Password", http_exception_1.ErrorCode.INVALID_DATA);
     }
+    if (user.deleted) {
+        return next(new configuration_1.default("Account inactive please contact adminstrator", http_exception_1.ErrorCode.BAD_CONFIGURATION));
+    }
     if (user.roles.length === 0) {
         return next(new configuration_1.default("User has no roles assigned", http_exception_1.ErrorCode.BAD_CONFIGURATION));
     }

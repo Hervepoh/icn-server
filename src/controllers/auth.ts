@@ -242,9 +242,15 @@ export const signin =
             throw new NotFoundException("Invalid Email or Password", ErrorCode.INVALID_DATA);
         }
 
+        if (user.deleted) {
+            return next(new ConfigurationException("Account inactive please contact adminstrator", ErrorCode.BAD_CONFIGURATION));
+        }
+
         if (user.roles.length === 0) {
             return next(new ConfigurationException("User has no roles assigned", ErrorCode.BAD_CONFIGURATION));
         }
+
+
         let roleIdToConnect;
         // If user has multiple roles, check if a role is specifie
         if (user.roles.length > 1) {

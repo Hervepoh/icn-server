@@ -211,7 +211,7 @@ const revalidateService = async (key: string) => {
 
     const data = await prismaClient.region.findMany({
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
     

@@ -287,7 +287,19 @@ export const sqlQuery = {
 			num_gest_cobro num_session
         from cobtemp 
 		where cod_caja=5701473
-		and cob_fuente_id = :BillNber`
+		and cob_fuente_id = :BillNber
+		and replace(substr(datos_pago, 46, 10),':') = :AciNber`,
+	
+	icn_search_bill_status_by_aci_number_offline_collections :
+		`SELECT /*+ parallel(6) */ DISTINCT 
+			COD_CAJA,
+			ACI_NUMBER,
+			SESSION_ID  
+		FROM cmsreport.tb_offline_collections 
+		WHERE  
+		COD_CAJA ='5701473'
+		AND ACI_NUMBER =:AciNber
+		`,
 
 }
 

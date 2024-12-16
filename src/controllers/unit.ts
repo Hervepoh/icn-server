@@ -222,7 +222,7 @@ const revalidateService = async (key: string) => {
             },
         },
         orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
         },
     });
 

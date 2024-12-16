@@ -14,6 +14,8 @@ import { MAIL_NO_REPLY, SALT_ROUNDS } from "../secrets";
 import { idSchema, signUpSchema, updateSchema, userRoleSchema } from "../schema/users";
 import { NotificationMethod } from "@prisma/client";
 import NotFoundException from "../exceptions/not-found";
+import UnauthorizedException from "../exceptions/unauthorized";
+import InternalException from "../exceptions/internal-exception";
 
 
 const key = 'users';
@@ -24,10 +26,11 @@ const key = 'users';
 interface IUser {
     name: string;
     email: string;
+    unitId?: string;
     password: string;
     ldap?: boolean;
     avatar?: string;
-    roleId?: any
+    roleId?: string | string[];
 }
 
 // Handling create user process
@@ -35,10 +38,28 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
     // Validate input
     signUpSchema.parse(req.body);
 
-    const { name, email, password, roleId, ldap } = req.body as IUser;
+    const { name, email, password, unitId, roleId, ldap } = req.body as IUser;
 
     if (!isAnAcceptablePassword(password)) {
         throw new BadRequestException(`Invalid Password : ${acceptablePasswordPolicy}`, ErrorCode.INVALID_DATA);
+    }
+
+    const isEmailAlreadyExist = await prismaClient.user.findFirst({
+        where: { email }
+    });
+    if (isEmailAlreadyExist) throw new UnauthorizedException(`There is already a user with the email : ${email}`, ErrorCode.INVALID_DATA);
+
+    const isNameAlreadyExist = await prismaClient.user.findFirst({
+        where: { name }
+    });
+    if (isNameAlreadyExist) throw new UnauthorizedException(`There is already a user with the name : ${name}`, ErrorCode.INVALID_DATA);
+
+    let unit: { id: string } | null = null
+    if (unitId) {
+        unit = await prismaClient.unit.findUnique({
+            where: { id: unitId }
+        });
+        if (!unit) throw new BadRequestException(`Invalid UnitId : ${unitId}`, ErrorCode.INVALID_DATA);
     }
 
     // Create user
@@ -47,29 +68,56 @@ export const create = async (req: Request, res: Response, next: NextFunction) =>
             name,
             email,
             password: await bcrypt.hash(password, parseInt(SALT_ROUNDS || '10')),
-            ldap
+            ldap,
+            unitId: unit?.id
         }
     });
-    let role;
-    if (!roleId) {
-        // default role
-        role = await prismaClient.role.findFirst({
-            where: { name: "USER" }
-        });
-    } else {
-        role = await prismaClient.role.findUnique({
-            where: { id: roleId }
-        });
-    }
-    if (!role) throw new BadRequestException(`Something went wrong`, ErrorCode.INVALID_DATA);
+    // let role;
+    // if (!roleId) {
+    //     // default role
+    //     role = await prismaClient.role.findFirst({
+    //         where: { name: "USER" }
+    //     });
+    // } else {
+    //     role = await prismaClient.role.findUnique({
+    //         where: { id: roleId }
+    //     });
+    // }
+    // if (!role) throw new BadRequestException(`Something went wrong`, ErrorCode.INVALID_DATA);
 
     // Assign default role
-    await prismaClient.userRole.create({
-        data: {
-            userId: user.id,
-            roleId: role.id,
+    // await prismaClient.userRole.create({
+    //     data: {
+    //         userId: user.id,
+    //         roleId: role.id,
+    //     }
+    // });
+
+    const assignedRoles = new Set<string>();
+
+    if (roleId) {
+        if (typeof roleId === 'string') {
+            // Si roleId est une chaîne, on l'ajoute directement
+            const role = await prismaClient.role.findUnique({ where: { id: roleId } });
+            if (role) assignedRoles.add(role.id);
+        } else if (Array.isArray(roleId)) {
+            // Si roleId est un tableau, on le traite en boucle
+            for (const id of roleId) {
+                const role = await prismaClient.role.findUnique({ where: { id } });
+                if (role) assignedRoles.add(role.id);
+            }
         }
-    });
+    }
+
+    // Assignation des rôles à l'utilisateur
+    for (const roleId of assignedRoles) {
+        await prismaClient.userRole.create({
+            data: {
+                userId: user.id,
+                roleId,
+            }
+        });
+    }
 
     const message = ldap
         ? `**Email**: ${user.email} \n\n Please use your Outlook password to log in.`
@@ -179,14 +227,31 @@ export const getById =
         const { id } = req.params;
         if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
 
-        const data = await prismaClient.user.findUnique({
-            where: { id: id },
-        });
-        if (!data) throw new NotFoundException("User not found", ErrorCode.RESSOURCE_NOT_FOUND);
+        const queryV = `select *  from v_users_id where id='${id}'`;
+        const data: { id: string, name: string, email: string, ldap: boolean, password: string, deleted: boolean, roleId: string, unitId: string }[] = await prismaClient.$queryRawUnsafe(queryV);
+        // const data = await prismaClient.user.findUnique({
+        //     where: { id: id },
+        // });
+        if (!data || data.length == 0) throw new NotFoundException("User not found", ErrorCode.RESSOURCE_NOT_FOUND);
+
+        // Assuming roleId is a string in your database and you want it as an array
+        const userData = {
+            id: data[0].id,
+            name: data[0].name,
+            email: data[0].email,
+            ldap: Boolean(data[0].ldap),
+            password: data[0].password,
+            deleted: Boolean(data[0].deleted),
+            roleId: data[0].roleId
+                ? data[0].roleId.split(',').map(role => role.trim()) // Split(Convert comma-separated roles to an array) and trim each role
+                : [], // Default to an empty array if no roles
+            unitId: data[0].unitId,
+        };
 
         res.status(200).json({
             success: true,
-            data: data
+            data: userData
+            //data: data
         });
 
     };
@@ -199,25 +264,158 @@ export const getById =
 // Handling  user udpdate process
 export const update =
     async (req: Request, res: Response, next: NextFunction) => {
+
+        const { id } = req.params;
+
+        // Validate ID
+        if (!id) {
+            throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA);
+        }
+
+        if (!idSchema.parse(id)) {
+            throw new BadRequestException('Invalid ID format', ErrorCode.INVALID_DATA);
+        }
+
+        // Validate input
+        const parsedInput = updateSchema.parse(req.body);
+
+        // Check if user exists
+        const user = await prismaClient.user.findUnique({
+            where: { id: id },
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found', ErrorCode.INVALID_DATA);
+        }
+
+        // Validate unit ID if provided
+        let unit: { id: string; } | null = null
+        if (parsedInput.unitId) {
+            unit = await prismaClient.unit.findUnique({
+                where: { id: parsedInput.unitId }
+            });
+            if (!unit) throw new BadRequestException('Invalid Unit ID', ErrorCode.INVALID_DATA);
+        }
+
+        // Handle password update
+        let newPassword = user.password; // Default to the current password
+        if (parsedInput.password && parsedInput.password !== newPassword) {
+            const isMatch = await bcrypt.compare(parsedInput.password, user.password);
+            if (!isMatch) {
+                newPassword = await bcrypt.hash(parsedInput.password, parseInt(SALT_ROUNDS || '10'));
+            } else {
+                console.warn('New password matches the old password; no update performed.');
+            }
+        }
+
+        // Validate role IDs if provided
+
+        let roleIdsToUpdate = parsedInput.roleId || []; // Use provided role IDs or default to an empty array
+        let invalidRoleIds = []; // Array to collect invalid role IDs
+
+        if (roleIdsToUpdate.length > 0) {
+            const validRoles = await prismaClient.role.findMany({
+                where: { id: { in: roleIdsToUpdate } },
+            });
+
+            // Identify invalid role IDs
+            const validRoleIds = validRoles.map(role => role.id);
+            invalidRoleIds = roleIdsToUpdate.filter(roleId => !validRoleIds.includes(roleId));
+
+            if (invalidRoleIds.length > 0) {
+                throw new InternalException(
+                    'One or more Role IDs are invalid',
+                    { invalidRoleIds }, // Include the invalid role IDs in the error response
+                    ErrorCode.INVALID_DATA,
+                );
+            }
+
+            // Fetch existing roles for the user
+            // const userRoles = await prismaClient.userRole.findMany({
+            //     where: { userId: user.id },
+            // });
+            // const existingRoleIds = userRoles.map(role => role.roleId);
+
+            // Determine new roles to add (not already assigned)
+            const newRolesToAdd = validRoleIds // validRoleIds.filter(roleId => !existingRoleIds.includes(roleId));
+            roleIdsToUpdate = [...new Set([...newRolesToAdd])]; // Combine existing and new roles without duplicates
+            await prismaClient.userRole.deleteMany({ where: { userId: user.id } });
+
+        } else {
+
+           // If no role IDs provided, delete all roles assigned to this user
+        await prismaClient.userRole.deleteMany({ where: { userId: user.id } });
+        roleIdsToUpdate = []; // Clear roles as all will be deleted
+        }
+
+        // Prepare data for update
+        const data = {
+            name: parsedInput.name || user.name,
+            email: parsedInput.email || user.email,
+            ldap: parsedInput.ldap !== undefined ? parsedInput.ldap : user.ldap,
+            unitId: parsedInput.unitId && unit ? unit.id : user.unitId,
+            password: newPassword,
+        };
+
+        // Update user in the database
+        const updatedUser = await prismaClient.user.update({
+            where: { id },
+            data,
+        });
+
+        // Update userRoles in the database
+        await Promise.all(roleIdsToUpdate.map(roleId =>
+            prismaClient.userRole.upsert({
+                where: { userId_roleId: { userId: user.id, roleId } }, 
+                create: { userId: user.id, roleId },
+                update: { roleId },
+            })
+        ));
+
+        // Revalidate services
+        revalidateService(key);
+        revalideCommercialListService(key + '_role_commercial');
+        revalidePublicistService(key + '_public')
+        res.status(200).json({
+            success: true,
+            data: { updatedUser, roles: [] }
+        });
+
+    };
+
+
+//-----------------------------------------------------------------------------
+//             UPDATE USER : put  /users/:id/disactive-reactive
+//-----------------------------------------------------------------------------
+
+// Handling  user udpdate process
+export const disactiveReactive =
+    async (req: Request, res: Response, next: NextFunction) => {
         const { id } = req.params;
         if (!id) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
         if (!idSchema.parse(id)) throw new BadRequestException('Invalid ID format', ErrorCode.INVALID_DATA)
 
-        const parsedInput = updateSchema.parse(req.body); // Validate input
+        const user = await prismaClient.user.findUnique({
+            where: { id: id },
+        });
+
+        if (!user) throw new NotFoundException('User not found', ErrorCode.USER_NOT_FOUND)
+        if (user.name == 'admin') throw new UnauthorizedException('Super Admin can not be disactive', ErrorCode.USER_NOT_FOUND)
+
         const data = await prismaClient.user.update({
             where: { id: id },
-            data: parsedInput,
+            data: { deleted: !user.deleted, deletedAt: user.deleted ? null : new Date() },
         });
         revalidateService(key);
         revalideCommercialListService(key + '_role_commercial');
         revalidePublicistService(key + '_public')
         res.status(200).json({
             success: true,
+            status: data.deleted ? 'inactive' : 'active',
             data: data
         });
 
     };
-
 
 //-----------------------------------------------------------------------------
 //             DELETE USER : delete  /users/:id
@@ -243,6 +441,8 @@ export const remove =
         res.status(204).send(); // No content
 
     };
+
+
 
 
 //-----------------------------------------------
@@ -302,12 +502,12 @@ export const addUserRole =
         if (!role) throw new NotFoundException("Role not found", ErrorCode.RESSOURCE_NOT_FOUND);
 
         await prismaClient.userRole.create({
-            data:  parsedData,
+            data: parsedData,
         });
 
         res.status(200).json({
             success: true,
-            message : "Role added successfully",
+            message: "Role added successfully",
         });
 
         revalidateService(key);
@@ -346,7 +546,7 @@ export const removeUserRole =
 
         res.status(200).json({
             success: true,
-            message : "Role removed successfully",
+            message: "Role removed successfully",
         });
 
         revalidateService(key);
@@ -356,11 +556,14 @@ export const removeUserRole =
 
 
 const revalidateService = async (key: string) => {
-    const data = await prismaClient.user.findMany({
-        orderBy: {
-            createdAt: 'desc',
-        },
-    });
+    const queryV = `select *  from v_users`;
+
+    const data: any = await prismaClient.$queryRawUnsafe(queryV);
+    // const data = await prismaClient.user.findMany({
+    //     orderBy: {
+    //         createdAt: 'desc',
+    //     },
+    // });
     await redis.set(key, JSON.stringify(data));
     return data
 }

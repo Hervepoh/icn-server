@@ -4,7 +4,6 @@ dotenv.config({ path: '.env' })
 export const PORT = process.env.NODE_PORT;
 export const NODE_ORIGIN = process.env.NODE_ORIGIN!;
 
-
 export const SALT_ROUNDS = process.env.SALT_ROUNDS;
 
 export const ACTIVATION_TOKEN_SECRET = process.env.ACTIVATION_TOKEN_SECRET || "";
@@ -22,6 +21,8 @@ export const DATABASE_EXTERNAL_PORT= process.env.DATABASE_EXTERNAL_PORT || "";
 export const DATABASE_EXTERNAL_USERNAME = process.env.DATABASE_EXTERNAL_USERNAME || "";
 export const DATABASE_EXTERNAL_PASSWORD = process.env.DATABASE_EXTERNAL_PASSWORD || "";
 
+export const SCRIPT_GENERATION_BROUILLARD = process.env.SCRIPT_GENERATION_BROUILLARD || "/u02/VAS_APPS/Generate_Brouillards/ExtractBrouillard.groovy";
+export const SCRIPT_GENERATION_BROUILLARD_OUTPUT = process.env.SCRIPT_GENERATION_BROUILLARD_OUTPUT || "/u02/VAS_APPS/Generate_Brouillards/BACKUP_DIR/BROUILLARDS/5701473/";
 
 export const REDIS_HOSTNAME = process.env.REDIS_HOSTNAME;
 export const REDIS_PORT = process.env.REDIS_PORT;

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import moment from 'moment-timezone';
 import cron from "node-cron";
+import { Client } from 'ssh2';
 
 import { sqlQuery } from "../constants/request";
 import prismaClient from "../libs/prismadb";
@@ -13,6 +14,7 @@ import { LogLevel, LogType, writeLogEntry } from "../libs/utils/log";
 import { EventIntegrationType, NotificationMethod, IntegrationDocument } from "@prisma/client";
 import InternalException from "../exceptions/internal-exception";
 import { formatReference } from "../libs/utils/formatter";
+import { SCRIPT_GENERATION_BROUILLARD, SCRIPT_GENERATION_BROUILLARD_OUTPUT } from "../secrets";
 
 
 //---------------------------------------------------------
@@ -317,7 +319,7 @@ export const add_document_entry = async () => {
         bill_due_date: " ", // Handle appropriately
         paid_amount: document.amountTopaid.toString(),
         paid_date: timestamp.format('DD/MM/YYYY HH:mm:ss'),
-        paid_by_msisdn: "724113114",
+        paid_by_msisdn: document.reference,
         transaction_status: "Success",
         om_bill_payment_status: "Bill Paid",
         integration_status: EventIntegrationType.WAIT_GENERATION
@@ -381,7 +383,8 @@ export const update_document_entry_status = async () => {
     FROM transactions t 
     JOIN transaction_details td ON td.transactionId = t.id
     JOIN integration_documents id ON td.id = id.transactionDetailsId
-    WHERE t.statusId = 8
+    WHERE 
+    (t.statusId = 8 OR t.statusId = 9)
     AND td.selected = 1
     AND id.integration_status in ('${EventIntegrationType.GENERATED}','${EventIntegrationType.PENDING}','${EventIntegrationType.ONGOING}','${EventIntegrationType.ONGOING_WITH_ISSUE}')  
   `
@@ -396,8 +399,8 @@ export const update_document_entry_status = async () => {
     }
 
     const statusMap: { [key: string]: EventIntegrationType } = {
-      '0S001': EventIntegrationType.ONGOING,
-      '0S002': EventIntegrationType.ONGOING_WITH_ISSUE,
+      'OS001': EventIntegrationType.ONGOING,
+      'OS002': EventIntegrationType.ONGOING_WITH_ISSUE,
       'OS005': EventIntegrationType.INTEGRATED
     };
 
@@ -405,7 +408,8 @@ export const update_document_entry_status = async () => {
 
     // loop on all transactions and documents
     for (const document of documents) {
-      const result = await executeQuery(sqlQuery.icn_search_bill_status, [document.bill_number]);
+      const result = await executeQuery(sqlQuery.icn_search_bill_status, [document.bill_number,document.reference]);
+
       const statusKey = result?.rows?.[0]?.[1] || null;
 
       let newStatus;
@@ -439,13 +443,13 @@ export const close_transaction_all_document_entry_status_integrated = async () =
   try {
     const transactions = await prismaClient.transaction.findMany({
       where: { statusId: 8 },
-      select: { id: true , reference: true}
+      select: { id: true, reference: true }
     });
- 
-    
+
+
     for (const transaction of transactions) {
-      console.log("Transaction ID:", transaction.reference);
-      const nb = await prismaClient.transactionDetail.count({
+      let closeTransaction = true;
+      const invoices = await prismaClient.transactionDetail.findMany({
         where: {
           AND: [
             { transactionId: transaction.id },
@@ -453,17 +457,20 @@ export const close_transaction_all_document_entry_status_integrated = async () =
           ]
         },
       });
-      console.log("Number of selected details:", nb);
-      const nbValidate = await prismaClient.integrationDocument.count({
-        where: {
-          AND: [
-            { transactionId: transaction.id },
-            { integration_status: EventIntegrationType.INTEGRATED }
-          ]
-        },
-      });
-      console.log("Number of validated documents:", nbValidate);
-      if (nb === nbValidate) {
+
+      for (const invoice of invoices) {
+        const result = await executeQuery(sqlQuery.icn_search_bill_status, [invoice.invoice,transaction.reference]);
+        const exist = result?.rows?.[0];
+
+        if (!exist) {
+          console.log('invoice : ' + invoice.invoice + '- transaction :' + invoice.transactionId + ' not integrated in CMS')
+          closeTransaction = false;
+          writeLogEntry('JOB : close_transaction_all_document_entry_status_integrated --> invoice : ' + invoice.invoice + '- transaction :' + invoice.transactionId + 'not yet integrated in CMS', LogLevel.INFO, LogType.GENERAL);
+        }
+
+      }
+
+      if (closeTransaction) {
         // Update transaction
         const updatedTransaction = await prismaClient.transaction.update({
           where: { id: transaction.id },
@@ -495,7 +502,10 @@ export const close_transaction_all_document_entry_status_integrated = async () =
             }
           }
         }));
+
+        // break; //Interup the loop
       }
+
     }
 
     // const transactionStatusUpdates: { [transactionId: string]: { id: number, status: EventIntegrationType }[] } = {};
@@ -580,6 +590,199 @@ export const close_transaction_all_document_entry_status_integrated = async () =
     //writeLogEntry('JOB : update_document_entry_status --> end', LogLevel.INFO, LogType.GENERAL);
   } catch (error) {
     writeLogEntry("JOB : update_document_entry_status --> Fail to update document entry", LogLevel.ERROR, LogType.GENERAL, [error]);
+  }
+};
+
+
+//---------------------------------------------------------
+//         For each invoice, retrieve CMS integration status and update ICN
+//---------------------------------------------------------
+export const transaction_receipt_all_document_entry_status_integrated = async () => {
+  // writeLogEntry('JOB : update_document_entry_status --> start', LogLevel.INFO, LogType.GENERAL);
+  try {
+    const transactions = await prismaClient.transaction.findMany({
+      where: { statusId: 9, isReceiptReady: false },
+      select: { id: true, reference: true }
+    });
+
+    for (const transaction of transactions) {
+      console.log("Transaction ID:", transaction.reference);
+      const nb = await prismaClient.transactionDetail.count({
+        where: {
+          AND: [
+            { transactionId: transaction.id },
+            { selected: true }
+          ]
+        },
+      });
+      console.log("Number of selected details:", nb);
+      const nbValidate = await prismaClient.integrationDocument.count({
+        where: {
+          AND: [
+            { transactionId: transaction.id },
+            { integration_status: EventIntegrationType.INTEGRATED }
+          ]
+        },
+      });
+      console.log("Number of validated documents:", nbValidate);
+      if (nb === nbValidate) {
+        // Update transaction
+        const updatedTransaction = await prismaClient.transaction.update({
+          where: { id: transaction.id },
+          data: { isReceiptReady: true }
+        });
+
+        //Notify the key account manager and the person who create the transaction
+
+        // Prepare notifications for the key account manager and the user who created the transaction
+        const usersToNotify = [
+          { id: updatedTransaction.userId, subject: "Transaction receipt available", message: `Transaction ID: ${updatedTransaction.reference} is now available . You can export it in the platform.` },
+          //{ id: updatedTransaction.createdBy, subject: "Transaction Treated and Integrated", message: `Your transaction ID: ${updatedTransaction.reference} has been processed and integrated into the CMS. Now You can edit the fog (Brouillard) for more details.` }
+        ];
+
+        // Notify users
+        await Promise.all(usersToNotify.map(async ({ id, subject, message }) => {
+          if (id) {
+            const user = await prismaClient.user.findFirst({ where: { id } });
+            if (user) {
+              await prismaClient.notification.create({
+                data: {
+                  email: user.email,
+                  message,
+                  method: NotificationMethod.EMAIL,
+                  subject,
+                  template: "notification.mail.ejs",
+                },
+              });
+            }
+          }
+        }));
+      }
+    }
+
+  } catch (error) {
+    writeLogEntry("JOB : update_document_entry_status --> Fail to update document entry", LogLevel.ERROR, LogType.GENERAL, [error]);
+  }
+};
+
+
+//---------------------------------------------------------
+//         Generate the ACI brouillard using session_id
+//---------------------------------------------------------
+export const transaction_brouillard_generation = async (req: Request, res: Response, next: NextFunction) => {
+  let reference = req.params.reference;
+  if (!reference) throw new BadRequestException('Invalid params', ErrorCode.INVALID_DATA)
+
+  try {
+    // D'abord, récupérez la transaction pour obtenir son ID
+    // const transaction = await getTransaction(reference);
+    // if (!transaction) {
+    //   return res.status(404).json({ success: false, message: 'Transaction not found' });
+    // }
+    // if (!transaction.reference) {
+    //   return res.status(404).json({ success: false, message: 'Transaction reference not found' });
+    // }
+
+    // // Ensuite, si la transaction existe, récupérez ses détails
+    // const documents = await getIntegrationDocuments(transaction.id);
+    // if (documents.length === 0) {
+    //   return res.status(404).json({ success: true, message: 'Invoices Not integrated in CMS' });
+    // }
+
+    // if (documents.length <= 0) {
+    //   return res.status(404).json({
+    //     success: true,
+    //     message: "Invoices Not integrate in CMS"
+    //   });
+    // }
+    
+    // reference = transaction.reference
+    const session = await getSession(reference); // const session = 20156987; // prod testing
+    if (!session) {
+      return res.status(404).json({ success: true, message: 'Error downloading file: no CMS session available' });
+    }
+
+    const conn = new Client();
+
+    let storedOutput: string | null = null;
+    const outputDir = path.join(__dirname, '../../output/brouillard');
+    // Create 'output' directory if it doesn't exist
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true }); // Using recursive option for safety
+    }
+   
+
+    conn.on('ready', () => {
+      console.log('Client :: ready');
+      conn.exec(`${SCRIPT_GENERATION_BROUILLARD} -s ${session}`, (err, stream) => {
+        if (err) throw err;
+        stream.on('close', (code: string, signal: string) => {
+          console.log('Stream :: close :: code: ' + code + ', signal: ' + signal);
+
+          if (storedOutput) {
+            // Copie du fichier vers la machine locale
+            const remoteFilePath = `${SCRIPT_GENERATION_BROUILLARD_OUTPUT}${storedOutput}`;
+            const localFilePath = path.join(outputDir, storedOutput); // Changez le chemin selon vos besoins
+
+            conn.sftp((err, sftp) => {
+              if (err) {
+                return res.status(500).json({
+                  success: false,
+                  message: "Error establishing SFTP connection"
+                });
+              }
+              sftp.fastGet(remoteFilePath, localFilePath, (err) => {
+                if (err) {
+                  return res.status(500).json({
+                    success: false,
+                    message: "Error downloading file"
+                  });
+                }
+                console.log(`Fichier ${storedOutput} copié vers ${localFilePath}`);
+                // Envoi du fichier en réponse au client
+                res.download(localFilePath, (err) => {
+                  if (err) {
+                    console.log('Error sending file:', err);
+                  }
+                  // Optionnel : Supprimez le fichier local après l'envoi
+                  fs.unlinkSync(localFilePath);
+                  conn.end();
+                });
+                conn.end();
+              });
+            });
+          } else {
+            return res.status(500).json({ success: false, aci:reference, session , message: 'No output file generated' });
+            conn.end();
+          }
+
+        }).on('data', (data: string) => {
+          console.log('STDOUT: ' + data);
+          const outputString = data.toString();
+          const name = `BROUILLARD_ACI_NUMERO_${reference}_SESSION_${session}_`;
+          // const regex = /BROUILLARD_ACI_NUMERO_112411113_SESSION_20181706_(.+?).xlsx/; // Expression régulière pour extraire la référence
+          const regex = new RegExp(`${name}(.+?).xlsx`);
+          const match = outputString.match(regex);
+          console.log("match",match)
+          if (match && match[0]) {
+            storedOutput = match[0]; // Stocke la référence si trouvée
+          }
+        }).stderr.on('data', (data) => {
+          console.log('STDERR: ' + data);
+        });
+
+        stream.end('echo fichier genere\n');
+      });
+    }).connect({
+      host: '10.250.90.200',
+      port: 22,
+      username: 'sdsa.user',
+      password: 'Sds@eneo',
+      // privateKey: require('fs').readFileSync('/chemin/vers/votre/cle')  // ou utilisez une clé privée
+    });
+  } catch (error) {
+    console.log("BROUILLARD-GENERATION")
+    writeLogEntry("JOB : transaction_brouillard_generation --> ", LogLevel.ERROR, LogType.GENERAL, [error]);
   }
 };
 
@@ -687,6 +890,13 @@ cron.schedule('* * * * *', async () => await run_job("close_transaction_all_docu
 
 
 //-----------------------------------------------
+//       Job for enabled the receip generation if all CMS intergrated invoice are in status OS005
+//-----------------------------------------------
+cron.schedule('* * * * *', async () => await run_job("transaction_receipt_all_document_entry_status_integrated", transaction_receipt_all_document_entry_status_integrated));
+
+
+
+//-----------------------------------------------
 //       Job for clearing user lock transactions
 //-----------------------------------------------
 cron.schedule('0 16,05 * * *', async () => await run_job("clear_lock_users_transactions", clear_lock_users_transactions));
@@ -703,13 +913,13 @@ export const run_job = async (job_name: string, job: Function) => {
         update: {},
         create: { job_name, is_running: false }
       });
-      writeLogEntry(`JOB : ${job_name} first initialisation`, LogLevel.ERROR, LogType.DATABASE, init);
+      writeLogEntry(`JOB : ${job_name} first initialisation`, LogLevel.INFO, LogType.DATABASE, init);
       return
     }
 
     // Check if the job is already running
     if (lock.is_running) {
-      writeLogEntry(`JOB : ${job_name} is already running. Exiting...`, LogLevel.ERROR, LogType.DATABASE);
+      writeLogEntry(`JOB : ${job_name} is already running. Exiting...`, LogLevel.INFO, LogType.DATABASE);
       return; // Exit if another instance is running
     }
 
@@ -739,5 +949,23 @@ export const run_job = async (job_name: string, job: Function) => {
 }
 
 
+const getTransaction = async (reference: string) => {
+  return await prismaClient.transaction.findFirst({
+    where: { reference },
+    select: { id: true, reference: true }
+  });
+};
 
+const getIntegrationDocuments = async (transactionId: string) => {
+  return await prismaClient.integrationDocument.findMany({
+    where: { transactionId },
+    select: { transaction_id: true, bill_number: true }
+  });
+};
+
+const getSession = async (AciNber: string) => {
+  const result = await executeQuery(sqlQuery.icn_search_bill_status_by_aci_number_offline_collections, [AciNber]);
+  console.log("getSession",result)
+  return result?.rows?.[0]?.[2] || null; // Assuming the session is in the 6th column
+};
 

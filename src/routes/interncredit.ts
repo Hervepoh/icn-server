@@ -11,6 +11,7 @@ import {
     generationOfIntegrationFile,
     update_document_entry_status,
     close_transaction_all_document_entry_status_integrated,
+    transaction_brouillard_generation,
 } from "../controllers/icn";
 
 const serviceName = serviceType.ICN;
@@ -75,8 +76,14 @@ interncreditRoutes.get(
 
 
 interncreditRoutes.get(
+    "/brouillard/:reference",
+    errorHandler(transaction_brouillard_generation)
+);
+
+
+interncreditRoutes.get(
     "/test",
-    errorHandler(close_transaction_all_document_entry_status_integrated)
+    errorHandler(update_document_entry_status)
 );
 
 export default interncreditRoutes;
